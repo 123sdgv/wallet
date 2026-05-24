@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>我的小账本</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --text: #172033;
+      --muted: #7b8496;
+      --line: #e6e9f0;
+      --primary: #111827;
+      --primaryText: #ffffff;
+      --green: #16a34a;
+      --red: #dc2626;
+      --orange: #f59e0b;
+      --blue: #2563eb;
+      --softBlue: #eaf1ff;
+      --softRed: #fff0f0;
+      --softGreen: #ebfff2;
+      --shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+      --radius: 24px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 34%),
+        radial-gradient(circle at top right, rgba(22, 163, 74, 0.11), transparent 30%),
+        var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 11px 15px;
+      font-weight: 750;
+      background: var(--primary);
+      color: var(--primaryText);
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    button.secondary {
+      background: #edf0f5;
+      color: var(--text);
+    }
+
+    button.ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+
+    button.danger {
+      background: #fee2e2;
+      color: var(--red);
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(246, 247, 251, 0.88);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid rgba(230, 233, 240, 0.75);
+      padding: env(safe-area-inset-top) 14px 12px;
+    }
+
+    .topbar {
+      max-width: 1180px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding-top: 12px;
+    }
+
+    .title h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: -0.04em;
+    }
+
+    .title p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 16px 14px 34px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .panel, .card {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(230, 233, 240, 0.95);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .panel {
+      padding: 18px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .summary-item {
+      background: #f8fafc;
+      border-radius: 20px;
+      padding: 13px;
+      border: 1px solid var(--line);
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .money {
+      margin-top: 6px;
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      word-break: break-word;
+    }
+
+    .money.income { color: var(--green); }
+    .money.expense { color: var(--red); }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin: 18px 0 10px;
+    }
+
+    .section-head h2 {
+      margin: 0;
+      font-size: 19px;
+      letter-spacing: -0.03em;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(245px, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      padding: 15px;
+      min-height: 136px;
+    }
+
+    .card-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .card-title strong {
+      font-size: 16px;
+      word-break: break-word;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 12px;
+      font-weight: 800;
+      background: #f2f4f8;
+      color: #4b5563;
+      white-space: nowrap;
+    }
+
+    .pill.green { background: var(--softGreen); color: var(--green); }
+    .pill.red { background: var(--softRed); color: var(--red); }
+    .pill.blue { background: var(--softBlue); color: var(--blue); }
+    .pill.orange { background: #fff7e6; color: #b45309; }
+
+    .card-money {
+      margin: 14px 0 8px;
+      font-size: 27px;
+      font-weight: 950;
+      letter-spacing: -0.05em;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 13px;
+    }
+
+    .progress-wrap {
+      height: 12px;
+      background: #eef2f7;
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 12px 0 8px;
+    }
+
+    .progress {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: var(--green);
+      transition: width 0.25s ease;
+    }
+
+    .progress.warn { background: var(--orange); }
+    .progress.danger { background: var(--red); }
+
+    .converter {
+      display: grid;
+      gap: 10px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 0.85fr;
+      gap: 10px;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fbfcff;
+      border-radius: 17px;
+      padding: 12px;
+      outline: none;
+      color: var(--text);
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: #9db7ff;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.09);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      margin: 4px 0 14px;
+    }
+
+    .tab {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--line);
+      white-space: nowrap;
+    }
+
+    .tab.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    .records {
+      display: grid;
+      gap: 9px;
+    }
+
+    .record {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .record strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .record-amount {
+      font-weight: 950;
+      font-size: 17px;
+      white-space: nowrap;
+    }
+
+    dialog {
+      border: 0;
+      border-radius: 28px;
+      width: min(720px, calc(100vw - 22px));
+      padding: 0;
+      box-shadow: 0 28px 80px rgba(15, 23, 42, 0.24);
+      overflow: hidden;
+    }
+
+    dialog::backdrop {
+      background: rgba(15, 23, 42, 0.42);
+      backdrop-filter: blur(4px);
+    }
+
+    .modal-head {
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .modal-head h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .modal-body {
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      background: white;
+    }
+
+    label {
+      display: grid;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 9px;
+      padding: 0 16px 16px;
+      flex-wrap: wrap;
+      background: white;
+    }
+
+    .empty {
+      padding: 28px 16px;
+      text-align: center;
+      color: var(--muted);
+      border: 2px dashed #d8dde8;
+      border-radius: var(--radius);
+      background: rgba(255,255,255,0.72);
+    }
+
+    .toast {
+      position: fixed;
+      left: 14px;
+      right: 14px;
+      bottom: calc(14px + env(safe-area-inset-bottom));
+      z-index: 99;
+      background: #111827;
+      color: white;
+      border-radius: 22px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+      padding: 14px 16px;
+      display: none;
+      line-height: 1.5;
+    }
+
+    .toast.show { display: block; }
+
+    .dangerText { color: var(--red); }
+    .greenText { color: var(--green); }
+
+    @media (max-width: 800px) {
+      .hero { grid-template-columns: 1fr; }
+      .summary-grid { grid-template-columns: 1fr; }
+      .row { grid-template-columns: 1fr; }
+      .title h1 { font-size: 22px; }
+      .topbar { align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <div class="title">
+        <h1>我的小账本</h1>
+        <p>钱包余额、预算规划、支出记录、汇率换算，全都放在一个页面里。</p>
+      </div>
+      <button id="addTransactionBtn">＋ 记一笔</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="panel">
+        <div class="label">当前总资产</div>
+        <div class="money" id="totalBalance">¥0.00</div>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <div class="label">本月收入</div>
+            <div class="money income" id="monthIncome">¥0.00</div>
+          </div>
+          <div class="summary-item">
+            <div class="label">本月支出</div>
+            <div class="money expense" id="monthExpense">¥0.00</div>
+          </div>
+          <div class="summary-item">
+            <div class="label">本月还可花</div>
+            <div class="money" id="monthLeft">¥0.00</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="card-title">
+          <strong>汇率换算</strong>
+          <span class="pill blue">手动汇率</span>
+        </div>
+        <p class="muted">适合算 Apple 订阅、外网购物、Visa 消费。先手动填汇率，后面可以升级成自动联网汇率。</p>
+        <div class="converter">
+          <div class="row">
+            <input id="fxAmount" type="number" min="0" step="0.01" placeholder="金额，比如 9.99" />
+            <select id="fxDirection">
+              <option value="usd-cny">美元 USD → 人民币 CNY</option>
+              <option value="cny-usd">人民币 CNY → 美元 USD</option>
+              <option value="jpy-cny">日元 JPY → 人民币 CNY</option>
+              <option value="cny-jpy">人民币 CNY → 日元 JPY</option>
+              <option value="eur-cny">欧元 EUR → 人民币 CNY</option>
+              <option value="cny-eur">人民币 CNY → 欧元 EUR</option>
+            </select>
+          </div>
+          <div class="row">
+            <input id="fxRate" type="number" min="0" step="0.0001" placeholder="汇率，比如 7.25" />
+            <button id="fxBtn" type="button">换算</button>
+          </div>
+          <div class="summary-item">
+            <div class="label">换算结果</div>
+            <div class="money" id="fxResult">—</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="overview">总览</button>
+      <button class="tab" data-tab="accounts">钱包账户</button>
+      <button class="tab" data-tab="budgets">预算卡片</button>
+      <button class="tab" data-tab="records">流水记录</button>
+      <button class="tab" data-tab="tools">备份</button>
+    </div>
+
+    <section id="overviewTab" class="tabPage">
+      <div class="section-head">
+        <h2>预算提醒</h2>
+        <button class="secondary" id="addBudgetBtn1">＋ 新预算</button>
+      </div>
+      <div id="budgetGridOverview" class="grid"></div>
+
+      <div class="section-head">
+        <h2>最近记录</h2>
+        <button class="secondary" id="quickIncomeBtn">＋ 收入</button>
+      </div>
+      <div id="recentRecords" class="records"></div>
+    </section>
+
+    <section id="accountsTab" class="tabPage" hidden>
+      <div class="section-head">
+        <h2>钱包账户</h2>
+        <button class="secondary" id="addAccountBtn">＋ 新账户</button>
+      </div>
+      <div id="accountGrid" class="grid"></div>
+    </section>
+
+    <section id="budgetsTab" class="tabPage" hidden>
+      <div class="section-head">
+        <h2>预算卡片</h2>
+        <button class="secondary" id="addBudgetBtn2">＋ 新预算</button>
+      </div>
+      <div id="budgetGrid" class="grid"></div>
+    </section>
+
+    <section id="recordsTab" class="tabPage" hidden>
+      <div class="section-head">
+        <h2>流水记录</h2>
+        <button class="danger" id="clearRecordsBtn">清空流水</button>
+      </div>
+      <div id="allRecords" class="records"></div>
+    </section>
+
+    <section id="toolsTab" class="tabPage" hidden>
+      <div class="panel">
+        <div class="card-title">
+          <strong>备份与恢复</strong>
+          <span class="pill orange">很重要</span>
+        </div>
+        <p class="muted">现在数据存在当前浏览器里。建议你偶尔导出备份，换手机、清理浏览器或误删时可以恢复。</p>
+        <div class="actions">
+          <button id="exportBtn">导出 JSON 备份</button>
+          <button class="secondary" id="importBtn">导入 JSON 备份</button>
+          <button class="danger" id="resetBtn">恢复初始示例</button>
+        </div>
+        <input id="importFile" type="file" accept="application/json,.json" hidden />
+      </div>
+    </section>
+  </main>
+
+  <dialog id="transactionDialog">
+    <form class="modal" id="transactionForm">
+      <div class="modal-head">
+        <h3 id="transactionTitle">记一笔</h3>
+        <button type="button" class="secondary" data-close="transactionDialog">关闭</button>
+      </div>
+      <div class="modal-body">
+        <label>
+          类型
+          <select id="txType">
+            <option value="expense">支出</option>
+            <option value="income">收入</option>
+          </select>
+        </label>
+        <label>
+          金额
+          <input id="txAmount" type="number" min="0" step="0.01" required placeholder="比如 28.5" />
+        </label>
+        <label>
+          从哪个账户扣 / 加到哪个账户
+          <select id="txAccount" required></select>
+        </label>
+        <label>
+          对应预算卡片
+          <select id="txBudget"></select>
+        </label>
+        <label>
+          备注
+          <input id="txNote" placeholder="比如：午饭 / 奶茶 / 工资 / 父母给的钱" />
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="submit">保存这一笔</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="accountDialog">
+    <form class="modal" id="accountForm">
+      <div class="modal-head">
+        <h3>账户</h3>
+        <button type="button" class="secondary" data-close="accountDialog">关闭</button>
+      </div>
+      <div class="modal-body">
+        <label>
+          名称
+          <input id="accountName" required placeholder="微信 / 支付宝 / 招行卡 / Visa" />
+        </label>
+        <label>
+          当前余额
+          <input id="accountBalance" type="number" step="0.01" required placeholder="比如 1200" />
+        </label>
+        <label>
+          备注
+          <input id="accountNote" placeholder="比如：第一张银行卡 / 留学用卡" />
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="submit">保存账户</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="budgetDialog">
+    <form class="modal" id="budgetForm">
+      <div class="modal-head">
+        <h3>预算卡片</h3>
+        <button type="button" class="secondary" data-close="budgetDialog">关闭</button>
+      </div>
+      <div class="modal-body">
+        <label>
+          名称
+          <input id="budgetName" required placeholder="饮食 / 娱乐 / Apple 订阅 / 大事计划" />
+        </label>
+        <label>
+          本月预算
+          <input id="budgetLimit" type="number" min="0" step="0.01" required placeholder="比如 800" />
+        </label>
+        <label>
+          说明 / 规划
+          <textarea id="budgetPlan" rows="4" placeholder="比如：这个月饮食 800 元；早餐控制在 10 元，午饭 20 元，晚饭 20 元。"></textarea>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="submit">保存预算</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const STORAGE_KEY = "my-budget-wallet-v1";
+
+    const defaultState = {
+      accounts: [
+        { id: id(), name: "微信", balance: 0, note: "微信零钱" },
+        { id: id(), name: "支付宝", balance: 0, note: "支付宝余额" },
+        { id: id(), name: "第一张银行卡", balance: 0, note: "主银行卡" },
+        { id: id(), name: "第二张银行卡", balance: 0, note: "备用银行卡" },
+        { id: id(), name: "Visa 卡", balance: 0, note: "以后外网消费 / Apple 订阅" }
+      ],
+      budgets: [
+        { id: id(), name: "饮食", limit: 800, plan: "这个月吃喝总预算 800 元。可以把早餐、午饭、晚饭的大概金额写在这里。" },
+        { id: id(), name: "娱乐", limit: 300, plan: "游戏、电影、会员、出去玩，都记到这里。" },
+        { id: id(), name: "Apple / 外网订阅", limit: 150, plan: "Apple Store、iCloud、外网网站订阅，可以先用汇率换算一下再记账。" },
+        { id: id(), name: "大事计划", limit: 1000, plan: "比如旅行、买设备、考试报名、证件办理等。" }
+      ],
+      transactions: []
+    };
+
+    let state = load();
+    let editingAccountId = null;
+    let editingBudgetId = null;
+
+    const $ = selector => document.querySelector(selector);
+    const $$ = selector => [...document.querySelectorAll(selector)];
+
+    function id() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    }
+
+    function load() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : structuredClone(defaultState);
+      } catch (error) {
+        return structuredClone(defaultState);
+      }
+    }
+
+    function save() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function money(value) {
+      const number = Number(value || 0);
+      return new Intl.NumberFormat("zh-CN", {
+        style: "currency",
+        currency: "CNY",
+        minimumFractionDigits: 2
+      }).format(number);
+    }
+
+    function todayMonthKey() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    }
+
+    function currentMonthTransactions() {
+      const key = todayMonthKey();
+      return state.transactions.filter(tx => tx.date && tx.date.startsWith(key));
+    }
+
+    function spentForBudget(budgetId) {
+      return currentMonthTransactions()
+        .filter(tx => tx.type === "expense" && tx.budgetId === budgetId)
+        .reduce((sum, tx) => sum + Number(tx.amount), 0);
+    }
+
+    function totalBudgetLimit() {
+      return state.budgets.reduce((sum, b) => sum + Number(b.limit || 0), 0);
+    }
+
+    function beep() {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.value = 880;
+        gain.gain.value = 0.045;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        setTimeout(() => {
+          osc.stop();
+          ctx.close();
+        }, 160);
+      } catch (error) {}
+    }
+
+    function toast(message, sound = false) {
+      const el = $("#toast");
+      el.innerHTML = message;
+      el.classList.add("show");
+      if (sound) beep();
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => el.classList.remove("show"), 5200);
+    }
+
+    function checkBudgetWarning(budgetId) {
+      const budget = state.budgets.find(b => b.id === budgetId);
+      if (!budget) return;
+      const spent = spentForBudget(budgetId);
+      const limit = Number(budget.limit || 0);
+      if (!limit) return;
+      const percent = spent / limit;
+      if (percent >= 1) {
+        toast(`⚠️ <b>${budget.name}</b> 已经超预算了：已用 ${money(spent)} / ${money(limit)}。现在要开始控制啦。`, true);
+        alert(`${budget.name} 已经超预算了！\n已用：${money(spent)}\n预算：${money(limit)}`);
+      } else if (percent >= 0.85) {
+        toast(`🔔 <b>${budget.name}</b> 已经用了 ${Math.round(percent * 100)}%，快到预算上限了。`, true);
+      }
+    }
+
+    function render() {
+      save();
+      renderSummary();
+      renderAccounts();
+      renderBudgets();
+      renderRecords();
+      fillSelects();
+    }
+
+    function renderSummary() {
+      const total = state.accounts.reduce((sum, account) => sum + Number(account.balance || 0), 0);
+      const month = currentMonthTransactions();
+      const income = month.filter(tx => tx.type === "income").reduce((sum, tx) => sum + Number(tx.amount), 0);
+      const expense = month.filter(tx => tx.type === "expense").reduce((sum, tx) => sum + Number(tx.amount), 0);
+      const left = totalBudgetLimit() - expense;
+
+      $("#totalBalance").textContent = money(total);
+      $("#monthIncome").textContent = money(income);
+      $("#monthExpense").textContent = money(expense);
+      $("#monthLeft").textContent = money(left);
+      $("#monthLeft").className = `money ${left < 0 ? "expense" : ""}`;
+    }
+
+    function renderAccounts() {
+      const html = state.accounts.map(account => `
+        <article class="card">
+          <div class="card-title">
+            <strong>${escapeHtml(account.name)}</strong>
+            <span class="pill blue">账户</span>
+          </div>
+          <div class="card-money">${money(account.balance)}</div>
+          <div class="muted">${escapeHtml(account.note || "没有备注")}</div>
+          <div class="actions">
+            <button class="secondary" onclick="openAccount('${account.id}')">编辑</button>
+            <button class="danger" onclick="deleteAccount('${account.id}')">删除</button>
+          </div>
+        </article>
+      `).join("");
+
+      $("#accountGrid").innerHTML = html || `<div class="empty">还没有账户。可以添加微信、支付宝、银行卡、Visa 卡。</div>`;
+    }
+
+    function renderBudgets() {
+      const html = state.budgets.map(budget => budgetCardHTML(budget)).join("");
+      $("#budgetGrid").innerHTML = html || `<div class="empty">还没有预算卡片。可以添加饮食、娱乐、订阅、大事计划。</div>`;
+      $("#budgetGridOverview").innerHTML = html || `<div class="empty">还没有预算卡片。先新建一个，比如“饮食 800 元”。</div>`;
+    }
+
+    function budgetCardHTML(budget) {
+      const spent = spentForBudget(budget.id);
+      const limit = Number(budget.limit || 0);
+      const left = limit - spent;
+      const percent = limit > 0 ? Math.min(100, Math.round((spent / limit) * 100)) : 0;
+      const barClass = percent >= 100 ? "danger" : percent >= 85 ? "warn" : "";
+      const pillClass = percent >= 100 ? "red" : percent >= 85 ? "orange" : "green";
+
+      return `
+        <article class="card">
+          <div class="card-title">
+            <strong>${escapeHtml(budget.name)}</strong>
+            <span class="pill ${pillClass}">${percent}%</span>
+          </div>
+          <div class="progress-wrap"><div class="progress ${barClass}" style="width:${percent}%"></div></div>
+          <div class="muted">已用 ${money(spent)} / 预算 ${money(limit)}</div>
+          <div class="card-money ${left < 0 ? "dangerText" : "greenText"}">${left < 0 ? "超了 " : "剩余 "}${money(Math.abs(left))}</div>
+          <div class="muted">${escapeHtml(budget.plan || "没有规划说明")}</div>
+          <div class="actions">
+            <button onclick="openTransaction('expense', '${budget.id}')">记支出</button>
+            <button class="secondary" onclick="openBudget('${budget.id}')">编辑</button>
+            <button class="danger" onclick="deleteBudget('${budget.id}')">删除</button>
+          </div>
+        </article>
+      `;
+    }
+
+    function renderRecords() {
+      const sorted = [...state.transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+      const recent = sorted.slice(0, 8);
+      $("#recentRecords").innerHTML = recordListHTML(recent, "还没有记录。点右上角“记一笔”开始。", false);
+      $("#allRecords").innerHTML = recordListHTML(sorted, "还没有流水记录。", true);
+    }
+
+    function recordListHTML(records, emptyText, showDelete) {
+      if (!records.length) return `<div class="empty">${emptyText}</div>`;
+      return records.map(tx => {
+        const account = state.accounts.find(a => a.id === tx.accountId);
+        const budget = state.budgets.find(b => b.id === tx.budgetId);
+        const sign = tx.type === "income" ? "+" : "-";
+        const cls = tx.type === "income" ? "greenText" : "dangerText";
+        const typeText = tx.type === "income" ? "收入" : "支出";
+        return `
+          <div class="record">
+            <div>
+              <strong>${escapeHtml(tx.note || typeText)}</strong>
+              <div class="muted">${new Date(tx.date).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} · ${escapeHtml(account?.name || "未知账户")} ${budget ? "· " + escapeHtml(budget.name) : ""}</div>
+            </div>
+            <div style="text-align:right">
+              <div class="record-amount ${cls}">${sign}${money(tx.amount)}</div>
+              ${showDelete ? `<button class="ghost" style="margin-top:6px;padding:7px 10px;font-size:12px" onclick="deleteTransaction('${tx.id}')">删除</button>` : ""}
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function fillSelects() {
+      const accountOptions = state.accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)} · ${money(a.balance)}</option>`).join("");
+      $("#txAccount").innerHTML = accountOptions;
+      const budgetOptions = `<option value="">不放入预算</option>` + state.budgets.map(b => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join("");
+      $("#txBudget").innerHTML = budgetOptions;
+    }
+
+    function escapeHtml(text) {
+      return String(text ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function openTransaction(type = "expense", budgetId = "") {
+      $("#txType").value = type;
+      $("#txAmount").value = "";
+      $("#txBudget").value = budgetId || "";
+      $("#txNote").value = "";
+      $("#transactionDialog").showModal();
+      setTimeout(() => $("#txAmount").focus(), 80);
+    }
+
+    function openAccount(accountId = null) {
+      editingAccountId = accountId;
+      const account = state.accounts.find(a => a.id === accountId);
+      $("#accountName").value = account?.name || "";
+      $("#accountBalance").value = account?.balance ?? "";
+      $("#accountNote").value = account?.note || "";
+      $("#accountDialog").showModal();
+    }
+
+    function openBudget(budgetId = null) {
+      editingBudgetId = budgetId;
+      const budget = state.budgets.find(b => b.id === budgetId);
+      $("#budgetName").value = budget?.name || "";
+      $("#budgetLimit").value = budget?.limit ?? "";
+      $("#budgetPlan").value = budget?.plan || "";
+      $("#budgetDialog").showModal();
+    }
+
+    function deleteAccount(accountId) {
+      const account = state.accounts.find(a => a.id === accountId);
+      if (!account) return;
+      if (!confirm(`确定删除账户“${account.name}”吗？相关流水不会删除，但会显示未知账户。`)) return;
+      state.accounts = state.accounts.filter(a => a.id !== accountId);
+      render();
+    }
+
+    function deleteBudget(budgetId) {
+      const budget = state.budgets.find(b => b.id === budgetId);
+      if (!budget) return;
+      if (!confirm(`确定删除预算“${budget.name}”吗？相关流水不会删除，但不再归入预算。`)) return;
+      state.budgets = state.budgets.filter(b => b.id !== budgetId);
+      render();
+    }
+
+    function deleteTransaction(txId) {
+      const tx = state.transactions.find(t => t.id === txId);
+      if (!tx) return;
+      if (!confirm("确定删除这条流水吗？删除后会自动把金额退回对应账户。")) return;
+      const account = state.accounts.find(a => a.id === tx.accountId);
+      if (account) {
+        account.balance += tx.type === "income" ? -Number(tx.amount) : Number(tx.amount);
+      }
+      state.transactions = state.transactions.filter(t => t.id !== txId);
+      render();
+    }
+
+    $("#addTransactionBtn").addEventListener("click", () => openTransaction("expense"));
+    $("#quickIncomeBtn").addEventListener("click", () => openTransaction("income"));
+    $("#addAccountBtn").addEventListener("click", () => openAccount());
+    $("#addBudgetBtn1").addEventListener("click", () => openBudget());
+    $("#addBudgetBtn2").addEventListener("click", () => openBudget());
+
+    $$("[data-close]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const dialog = document.getElementById(btn.dataset.close);
+        dialog.close();
+      });
+    });
+
+    $$(".tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        $$(".tab").forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        $$(".tabPage").forEach(page => page.hidden = true);
+        $(`#${tab.dataset.tab}Tab`).hidden = false;
+      });
+    });
+
+    $("#transactionForm").addEventListener("submit", event => {
+      event.preventDefault();
+      const type = $("#txType").value;
+      const amount = Number($("#txAmount").value || 0);
+      const accountId = $("#txAccount").value;
+      const budgetId = $("#txBudget").value;
+      const note = $("#txNote").value.trim();
+
+      if (!amount || amount <= 0) return alert("金额要大于 0。");
+      const account = state.accounts.find(a => a.id === accountId);
+      if (!account) return alert("先添加一个账户。比如微信、支付宝或银行卡。");
+
+      if (type === "expense") account.balance -= amount;
+      if (type === "income") account.balance += amount;
+
+      state.transactions.unshift({
+        id: id(),
+        type,
+        amount,
+        accountId,
+        budgetId: type === "expense" ? budgetId : "",
+        note,
+        date: new Date().toISOString()
+      });
+
+      $("#transactionDialog").close();
+      render();
+      if (type === "expense" && budgetId) checkBudgetWarning(budgetId);
+    });
+
+    $("#accountForm").addEventListener("submit", event => {
+      event.preventDefault();
+      const name = $("#accountName").value.trim();
+      const balance = Number($("#accountBalance").value || 0);
+      const note = $("#accountNote").value.trim();
+      if (!name) return;
+
+      if (editingAccountId) {
+        state.accounts = state.accounts.map(a => a.id === editingAccountId ? { ...a, name, balance, note } : a);
+      } else {
+        state.accounts.push({ id: id(), name, balance, note });
+      }
+      editingAccountId = null;
+      $("#accountDialog").close();
+      render();
+    });
+
+    $("#budgetForm").addEventListener("submit", event => {
+      event.preventDefault();
+      const name = $("#budgetName").value.trim();
+      const limit = Number($("#budgetLimit").value || 0);
+      const plan = $("#budgetPlan").value.trim();
+      if (!name || limit < 0) return;
+
+      if (editingBudgetId) {
+        state.budgets = state.budgets.map(b => b.id === editingBudgetId ? { ...b, name, limit, plan } : b);
+      } else {
+        state.budgets.push({ id: id(), name, limit, plan });
+      }
+      editingBudgetId = null;
+      $("#budgetDialog").close();
+      render();
+    });
+
+    $("#fxBtn").addEventListener("click", () => {
+      const amount = Number($("#fxAmount").value || 0);
+      const rate = Number($("#fxRate").value || 0);
+      const direction = $("#fxDirection").value;
+      if (!amount || !rate) return alert("请填写金额和汇率。比如美元转人民币：金额 9.99，汇率 7.25。");
+
+      const multiplyDirections = ["usd-cny", "jpy-cny", "eur-cny"];
+      const result = multiplyDirections.includes(direction) ? amount * rate : amount / rate;
+      const target = direction.endsWith("cny") ? "CNY" : direction.endsWith("usd") ? "USD" : direction.endsWith("jpy") ? "JPY" : "EUR";
+      const symbol = target === "CNY" ? "¥" : target === "USD" ? "$" : target === "JPY" ? "¥" : "€";
+      $("#fxResult").textContent = `${symbol}${result.toFixed(target === "JPY" ? 0 : 2)} ${target}`;
+    });
+
+    $("#clearRecordsBtn").addEventListener("click", () => {
+      if (!confirm("确定清空所有流水吗？这不会自动恢复账户余额，建议先导出备份。")) return;
+      state.transactions = [];
+      render();
+    });
+
+    $("#exportBtn").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `我的小账本备份-${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("✅ 已导出备份文件。建议保存到 iCloud Drive。", false);
+    });
+
+    $("#importBtn").addEventListener("click", () => $("#importFile").click());
+    $("#importFile").addEventListener("change", event => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const imported = JSON.parse(reader.result);
+          if (!imported.accounts || !imported.budgets || !imported.transactions) throw new Error("格式不对");
+          state = imported;
+          render();
+          toast("✅ 导入成功。", false);
+        } catch (error) {
+          alert("导入失败：这个文件看起来不是小账本备份。");
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = "";
+    });
+
+    $("#resetBtn").addEventListener("click", () => {
+      if (!confirm("确定恢复初始示例吗？当前数据会被覆盖。建议先导出备份。")) return;
+      state = structuredClone(defaultState);
+      render();
+    });
+
+    window.openTransaction = openTransaction;
+    window.openAccount = openAccount;
+    window.openBudget = openBudget;
+    window.deleteAccount = deleteAccount;
+    window.deleteBudget = deleteBudget;
+    window.deleteTransaction = deleteTransaction;
+
+    render();
+  </script>
+</body>
+</html>
