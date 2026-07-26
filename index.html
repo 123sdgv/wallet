@@ -1,2453 +1,1149 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>我的小账本</title>
-  <style>
-    :root {
-      --bg: #f4f6fb;
-      --surface: #ffffff;
-      --surface2: #f8fafc;
-      --text: #111827;
-      --muted: #7b8496;
-      --line: #e5e7eb;
-      --primary: #111827;
-      --primaryText: #ffffff;
-      --blue: #2563eb;
-      --red: #dc2626;
-      --green: #16a34a;
-      --orange: #f59e0b;
-      --purple: #7c3aed;
-      --cyan: #0891b2;
-      --pink: #db2777;
-      --shadow: 0 18px 55px rgba(15, 23, 42, 0.1);
-      --radius: 26px;
-      --sidebar: 270px;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background:
-        radial-gradient(circle at top left, rgba(37, 99, 235, 0.14), transparent 28%),
-        radial-gradient(circle at 90% 12%, rgba(22, 163, 74, 0.12), transparent 26%),
-        var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
-    }
-
-    button, input, select, textarea { font: inherit; }
-
-    button {
-      border: 0;
-      border-radius: 999px;
-      background: var(--primary);
-      color: var(--primaryText);
-      font-weight: 850;
-      padding: 11px 15px;
-      cursor: pointer;
-      touch-action: manipulation;
-    }
-
-    button.secondary { background: #edf0f5; color: var(--text); }
-    button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
-    button.danger { background: #fee2e2; color: var(--red); }
-    button.small { padding: 7px 10px; font-size: 12px; }
-    button:disabled { opacity: 0.45; cursor: not-allowed; }
-
-    input, select, textarea {
-      width: 100%;
-      border: 1px solid var(--line);
-      background: #fbfcff;
-      border-radius: 18px;
-      padding: 12px;
-      outline: none;
-      color: var(--text);
-    }
-
-    input:focus, select:focus, textarea:focus {
-      border-color: #9db7ff;
-      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
-    }
-
-    label {
-      display: grid;
-      gap: 7px;
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 850;
-    }
-
-    .app {
-      display: grid;
-      grid-template-columns: var(--sidebar) 1fr;
-      min-height: 100vh;
-    }
-
-    .sidebar {
-      position: sticky;
-      top: 0;
-      height: 100vh;
-      padding: calc(18px + env(safe-area-inset-top)) 16px 18px;
-      background: rgba(255, 255, 255, 0.88);
-      backdrop-filter: blur(22px);
-      border-right: 1px solid rgba(229, 231, 235, 0.85);
-      z-index: 30;
-      overflow-y: auto;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-
-    .logo {
-      width: 42px;
-      height: 42px;
-      border-radius: 16px;
-      background: #111827;
-      color: white;
-      display: grid;
-      place-items: center;
-      font-weight: 950;
-      box-shadow: 0 12px 28px rgba(17, 24, 39, 0.22);
-      overflow: hidden;
-    }
-    .logo img { width: 100%; height: 100%; object-fit: cover; }
-
-    .brand h1 {
-      margin: 0;
-      font-size: 19px;
-      letter-spacing: -0.04em;
-    }
-
-    .brand p {
-      margin: 2px 0 0;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .nav {
-      display: grid;
-      gap: 8px;
-    }
-
-    .nav button {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      gap: 10px;
-      background: transparent;
-      color: #4b5563;
-      border: 1px solid transparent;
-      padding: 12px 13px;
-      border-radius: 18px;
-      font-weight: 900;
-    }
-
-    .nav button.active {
-      background: #111827;
-      color: white;
-      box-shadow: 0 12px 26px rgba(17, 24, 39, 0.16);
-    }
-
-    .nav button:not(.active):hover { background: #f1f5f9; }
-
-    .sidebar-foot {
-      margin-top: 16px;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.5;
-      background: #f8fafc;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 12px;
-    }
-
-    .content {
-      min-width: 0;
-      padding: 18px 18px 36px;
-    }
-
-    .mobile-topbar {
-      display: none;
-      position: sticky;
-      top: 0;
-      z-index: 20;
-      margin: -18px -18px 16px;
-      padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
-      background: rgba(244, 246, 251, 0.9);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid rgba(229, 231, 235, 0.8);
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
-
-    .mobile-title {
-      min-width: 0;
-    }
-
-    .mobile-title strong {
-      display: block;
-      font-size: 16px;
-      letter-spacing: -0.03em;
-    }
-
-    .mobile-title span {
-      display: block;
-      color: var(--muted);
-      font-size: 12px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .page {
-      max-width: 1120px;
-      margin: 0 auto;
-      display: none;
-      animation: fade 0.18s ease;
-    }
-
-    .page.active { display: block; }
-
-    @keyframes fade {
-      from { opacity: 0; transform: translateY(4px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .page-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 14px;
-      margin-bottom: 16px;
-      flex-wrap: wrap;
-    }
-
-    .page-head h2 {
-      margin: 0;
-      font-size: 30px;
-      letter-spacing: -0.06em;
-    }
-
-    .page-head p {
-      margin: 6px 0 0;
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.5;
-    }
-
-    .page-head .actions { display: flex; gap: 8px; flex-wrap: wrap; }
-
-    .card, .panel {
-      background: rgba(255, 255, 255, 0.92);
-      border: 1px solid rgba(229, 231, 235, 0.95);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-    }
-
-    .panel { padding: 17px; }
-
-    .home-hero {
-      display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
-      gap: 14px;
-      margin-bottom: 14px;
-    }
-
-    .asset-card {
-      padding: 24px;
-      min-height: 230px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      background:
-        radial-gradient(circle at top right, rgba(255, 255, 255, 0.18), transparent 28%),
-        linear-gradient(135deg, #111827, #263247);
-      color: white;
-      overflow: hidden;
-    }
-
-    .label {
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 900;
-    }
-
-    .asset-card .label { color: rgba(255,255,255,0.72); }
-
-    .big-money {
-      font-size: clamp(34px, 6vw, 64px);
-      font-weight: 950;
-      letter-spacing: -0.07em;
-      line-height: 1;
-      margin-top: 8px;
-      word-break: break-word;
-    }
-
-    .asset-sub-row {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-      margin-top: 10px;
-    }
-    .asset-sub-row div { min-width: 90px; }
-    .asset-sub-row .v { font-weight: 900; font-size: 15px; margin-top: 2px; }
-
-    .summary-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 12px;
-    }
-
-    .summary-card {
-      padding: 17px;
-      min-height: 104px;
-    }
-
-    .money {
-      margin-top: 7px;
-      font-size: 28px;
-      font-weight: 950;
-      letter-spacing: -0.05em;
-      word-break: break-word;
-    }
-
-    .green { color: var(--green); }
-    .red { color: var(--red); }
-    .blue { color: var(--blue); }
-    .orange { color: #b45309; }
-    .purple { color: var(--purple); }
-
-    .quick-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin-top: 14px;
-    }
-
-    .mini-card {
-      padding: 15px;
-      min-height: 120px;
-    }
-
-    .mini-card strong, .card-title strong {
-      font-size: 16px;
-      word-break: break-word;
-    }
-
-    .muted {
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.5;
-    }
-
-    .card-title {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 10px;
-    }
-
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 5px;
-      border-radius: 999px;
-      padding: 5px 9px;
-      font-size: 12px;
-      font-weight: 900;
-      background: #f1f5f9;
-      color: #4b5563;
-      white-space: nowrap;
-    }
-
-    .pill.red { background: #fee2e2; color: var(--red); }
-    .pill.green { background: #dcfce7; color: var(--green); }
-    .pill.blue { background: #dbeafe; color: var(--blue); }
-    .pill.orange { background: #fff7ed; color: #b45309; }
-    .pill.purple { background: #f3e8ff; color: var(--purple); }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-      gap: 12px;
-    }
-
-    .record-list { display: grid; gap: 10px; }
-
-    .record {
-      background: white;
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      padding: 13px;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .record strong { display: block; margin-bottom: 4px; }
-    .record-money { font-weight: 950; font-size: 18px; white-space: nowrap; }
-
-    .record-right {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 8px;
-    }
-
-    .record-actions { display: flex; gap: 6px; }
-
-    .icon-btn {
-      width: 30px;
-      height: 30px;
-      padding: 0;
-      display: grid;
-      place-items: center;
-      font-size: 13px;
-      line-height: 1;
-      border-radius: 999px;
-    }
-
-    .simple-item-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 10px;
-    }
-
-    .tag-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      border-radius: 999px;
-      padding: 5px 9px;
-      font-size: 12px;
-      font-weight: 900;
-      background: #f1f5f9;
-      color: #4b5563;
-      margin-top: 6px;
-    }
-
-    .tag-dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 999px;
-      background: var(--blue);
-      flex: 0 0 auto;
-    }
-
-    .toolbar {
-      display: flex;
-      gap: 9px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .toolbar label {
-      min-width: 170px;
-      flex: 1;
-    }
-
-    .calendar-top-strip {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 12px;
-      align-items: center;
-      margin-bottom: 12px;
-    }
-
-    .month-strip {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      overflow-x: auto;
-      background: white;
-      border: 1px solid var(--line);
-      border-radius: 22px;
-      padding: 10px;
-    }
-
-    .month-strip input { width: 170px; flex: 0 0 auto; }
-
-    .calendar-summary {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-      margin-bottom: 14px;
-    }
-
-    .calendar-layout {
-      display: grid;
-      grid-template-columns: 1.15fr 0.85fr;
-      gap: 14px;
-    }
-
-    .weekday-grid, .calendar-grid {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 8px;
-    }
-
-    .weekday {
-      color: var(--muted);
-      text-align: center;
-      font-size: 12px;
-      font-weight: 950;
-      padding: 3px 0;
-    }
-
-    .calendar-grid { margin-top: 9px; }
-
-    .day {
-      min-height: 92px;
-      background: white;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 9px;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      overflow: hidden;
-    }
-
-    .day.dim { opacity: 0.4; background: #f8fafc; }
-    .day.today { border-color: #93c5fd; box-shadow: 0 0 0 4px rgba(37,99,235,0.08) inset; }
-
-    .day-num { font-size: 12px; font-weight: 950; color: #374151; }
-    .day-line { font-size: 11px; font-weight: 950; line-height: 1.25; }
-    .day-tags { margin-top: auto; display: flex; gap: 4px; flex-wrap: wrap; }
-
-    details.day-group {
-      background: white;
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      overflow: hidden;
-    }
-
-    details.day-group + details.day-group { margin-top: 9px; }
-
-    details.day-group summary {
-      list-style: none;
-      cursor: pointer;
-      padding: 13px;
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      align-items: center;
-      font-weight: 950;
-    }
-
-    details.day-group summary::-webkit-details-marker { display: none; }
-
-    .two-columns {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      padding: 0 13px 13px;
-    }
-
-    .column-box {
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: #fbfcff;
-      padding: 10px;
-      min-width: 0;
-    }
-
-    .column-box h4 {
-      margin: 0 0 8px;
-      font-size: 13px;
-    }
-
-    .simple-list { display: grid; gap: 7px; }
-
-    .simple-item {
-      border-top: 1px dashed #e5e7eb;
-      padding-top: 7px;
-      display: grid;
-      gap: 3px;
-    }
-
-    .simple-item:first-child { border-top: 0; padding-top: 0; }
-
-    .chart-panel { padding: 16px; }
-
-    .chart-controls {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 10px;
-      margin: 12px 0 14px;
-    }
-
-    .chart-wrap {
-      width: 100%;
-      min-height: 360px;
-      background: linear-gradient(180deg, white, #f8fafc);
-      border: 1px solid var(--line);
-      border-radius: 24px;
-      padding: 10px;
-      overflow: hidden;
-    }
-
-    #lineChart {
-      width: 100%;
-      height: 340px;
-      display: block;
-    }
-
-    .legend {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 10px;
-    }
-
-    .budget-card, .tag-card, .account-card {
-      padding: 15px;
-      min-height: 142px;
-    }
-
-    .budget-card .money { font-size: 25px; }
-
-    .progress-wrap {
-      height: 12px;
-      border-radius: 999px;
-      background: #eef2f7;
-      overflow: hidden;
-      margin: 12px 0 8px;
-    }
-
-    .progress {
-      height: 100%;
-      border-radius: 999px;
-      background: var(--green);
-      width: 0%;
-      transition: width 0.2s ease;
-    }
-
-    .progress.warn { background: var(--orange); }
-    .progress.danger { background: var(--red); }
-
-    .settings-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-
-    .empty {
-      padding: 26px 16px;
-      text-align: center;
-      color: var(--muted);
-      border: 2px dashed #d8dde8;
-      border-radius: var(--radius);
-      background: rgba(255,255,255,0.72);
-    }
-
-    dialog {
-      border: 0;
-      border-radius: 28px;
-      width: min(720px, calc(100vw - 22px));
-      padding: 0;
-      box-shadow: 0 28px 80px rgba(15, 23, 42, 0.25);
-      overflow: hidden;
-      max-height: min(88vh, 820px);
-    }
-
-    dialog::backdrop {
-      background: rgba(15, 23, 42, 0.45);
-      backdrop-filter: blur(5px);
-    }
-
-    .modal-head {
-      padding: 16px;
-      border-bottom: 1px solid var(--line);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .modal-head h3 { margin: 0; font-size: 18px; }
-
-    .modal-body {
-      padding: 16px;
-      display: grid;
-      gap: 12px;
-      background: white;
-      max-height: calc(88vh - 130px);
-      overflow-y: auto;
-    }
-
-    .modal-actions {
-      background: white;
-      padding: 0 16px 16px;
-      display: flex;
-      justify-content: flex-end;
-      gap: 9px;
-      flex-wrap: wrap;
-    }
-
-    .segmented {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      background: #f1f5f9;
-      border-radius: 20px;
-      padding: 6px;
-    }
-    .segmented.three { grid-template-columns: 1fr 1fr 1fr; }
-
-    .segmented button {
-      background: transparent;
-      color: #4b5563;
-      border-radius: 16px;
-    }
-
-    .segmented button.active {
-      background: white;
-      color: var(--text);
-      box-shadow: 0 8px 20px rgba(15,23,42,0.08);
-    }
-
-    .overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(15, 23, 42, 0.38);
-      z-index: 25;
-      display: none;
-    }
-
-    .overlay.show { display: block; }
-
-    .toast {
-      position: fixed;
-      left: 14px;
-      right: 14px;
-      bottom: calc(14px + env(safe-area-inset-bottom));
-      z-index: 80;
-      background: #111827;
-      color: white;
-      border-radius: 22px;
-      box-shadow: 0 20px 60px rgba(0,0,0,.25);
-      padding: 14px 16px;
-      display: none;
-      line-height: 1.5;
-    }
-
-    .toast.show { display: block; }
-
-    .warn-box {
-      border-radius: 18px;
-      padding: 12px 14px;
-      font-size: 13px;
-      line-height: 1.6;
-      font-weight: 800;
-      display: none;
-    }
-    .warn-box.show { display: block; }
-    .warn-box.info { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-    .warn-box.warn { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
-    .warn-box.danger { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
-
-    .plan-card { padding: 15px; }
-    .plan-card .status-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-
-    .kind-badge {
-      font-size: 11px;
-      font-weight: 900;
-      color: var(--muted);
-    }
-
-    @media (max-width: 1020px) {
-      .app { grid-template-columns: 1fr; }
-      .sidebar {
-        position: fixed;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: min(86vw, 310px);
-        transform: translateX(-110%);
-        transition: transform 0.22s ease;
-        box-shadow: 24px 0 80px rgba(15, 23, 42, 0.18);
-      }
-      .sidebar.show { transform: translateX(0); }
-      .mobile-topbar { display: flex; }
-      .content { padding: 18px 14px 32px; }
-      .home-hero { grid-template-columns: 1fr; }
-      .quick-grid { grid-template-columns: 1fr; }
-      .calendar-layout { grid-template-columns: 1fr; }
-      .settings-grid { grid-template-columns: 1fr; }
-    }
-
-    @media (max-width: 720px) {
-      .page-head h2 { font-size: 25px; }
-      .summary-grid, .calendar-summary, .two-columns { grid-template-columns: 1fr; }
-      .chart-controls { grid-template-columns: 1fr; }
-      .calendar-top-strip { grid-template-columns: 1fr; }
-      .weekday-grid, .calendar-grid { gap: 5px; }
-      .day { min-height: 76px; padding: 7px; border-radius: 14px; }
-      .day-line { font-size: 10.5px; }
-      .record { grid-template-columns: 1fr; }
-      .record-money { text-align: left; }
-      .toolbar label { min-width: 100%; }
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="wallet" />
+<meta name="theme-color" content="#0d9488" />
+<meta name="mobile-web-app-capable" content="yes" />
+<link rel="manifest" href="manifest.json" />
+<title>清醒消费</title>
+<style>
+:root{
+  --bg:#f7f8f8; --card:#fff; --text:#111827; --muted:#6b7280; --line:#eef0f2;
+  --brand:#0d9488; --brand-soft:#ecfdf5; --danger:#dc2626; --warn:#d97706;
+  --radius:18px; --shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.04);
+  --nav:64px; --safe:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+.app{max-width:430px;margin:0 auto;min-height:100vh;padding-bottom:calc(var(--nav) + var(--safe) + 12px)}
+.top{padding:18px 20px 8px;position:sticky;top:0;background:rgba(247,248,248,.92);backdrop-filter:blur(12px);z-index:10}
+.top h1{margin:0;font-size:22px;font-weight:700;letter-spacing:-.02em}
+.top p{margin:4px 0 0;color:var(--muted);font-size:13px}
+.main{padding:8px 16px 20px}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:12px}
+.card.soft{background:linear-gradient(180deg,#fff, #f9fffd);border:1px solid #e6f7f3}
+.hero{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.metric{padding:12px;border-radius:14px;background:#f9fafb}
+.metric b{display:block;font-size:18px;margin-top:4px;font-variant-numeric:tabular-nums}
+.metric span{font-size:12px;color:var(--muted)}
+.section-title{display:flex;align-items:center;justify-content:space-between;margin:4px 2px 10px}
+.section-title h2{margin:0;font-size:15px;font-weight:650}
+.muted{color:var(--muted);font-size:12px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.btn{border:0;border-radius:12px;padding:11px 14px;background:var(--brand);color:#fff;font-weight:600}
+.btn:active{transform:scale(.98)}
+.btn.block{width:100%}
+.btn.ghost{background:var(--brand-soft);color:var(--brand)}
+.btn.line{background:#fff;color:var(--text);border:1px solid var(--line)}
+.btn.danger{background:#fef2f2;color:var(--danger)}
+.btn.sm{padding:7px 10px;font-size:12px;border-radius:10px}
+.field{display:block;margin-bottom:12px}
+.field>span{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+input,select,textarea{
+  width:100%;border:1px solid var(--line);background:#fff;border-radius:12px;
+  padding:11px 12px;outline:none
+}
+input:focus,select:focus,textarea:focus{border-color:#99f6e4;box-shadow:0 0 0 3px rgba(13,148,136,.12)}
+textarea{min-height:88px;resize:vertical}
+.item{padding:12px 0;border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}
+.tag{font-size:11px;color:var(--muted);background:#f3f4f6;padding:2px 8px;border-radius:999px}
+.tag.warn{background:#fff7ed;color:#c2410c}
+.tag.ok{background:#ecfdf5;color:#047857}
+.tag.danger{background:#fef2f2;color:#b91c1c}
+.tag.purple{background:#f5f3ff;color:#6d28d9}
+.dot{width:8px;height:8px;border-radius:999px;display:inline-block;margin-right:5px;vertical-align:middle}
+.nav{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:min(430px,100%);
+  height:calc(var(--nav) + var(--safe));padding:8px 8px var(--safe);background:rgba(255,255,255,.96);
+  border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);gap:2px;z-index:20}
+.nav button{border:0;background:transparent;color:#9ca3af;font-size:11px;border-radius:12px;padding:6px 2px}
+.nav button.active{color:var(--brand);background:var(--brand-soft);font-weight:700}
+.empty{padding:28px 8px;text-align:center;color:var(--muted);font-size:13px;line-height:1.6}
+.chat{display:flex;flex-direction:column;gap:10px;min-height:36vh}
+.bubble{max-width:92%;padding:10px 12px;border-radius:16px;font-size:14px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.bubble.me{align-self:flex-end;background:var(--brand);color:#fff;border-bottom-right-radius:6px}
+.bubble.ai{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:6px}
+.bubble .tools{display:flex;gap:6px;margin-top:8px}
+.icon{border:0;background:#f3f4f6;width:26px;height:26px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;color:#4b5563}
+.bubble.me .icon{background:rgba(255,255,255,.18);color:#fff}
+.icon svg{width:13px;height:13px}
+.composer{display:flex;gap:8px;align-items:flex-end}
+.composer textarea{min-height:44px;max-height:120px}
+.list-btn{width:100%;text-align:left;border:0;background:transparent;padding:14px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.list-btn:last-child{border-bottom:0}
+.list-btn strong{font-size:14px;font-weight:600}
+.list-btn span{color:var(--muted);font-size:12px}
+.modal-mask{position:fixed;inset:0;background:rgba(17,24,39,.4);display:flex;align-items:flex-end;justify-content:center;z-index:50}
+.modal{width:min(430px,100%);background:#fff;border-radius:22px 22px 0 0;padding:16px 16px calc(16px + var(--safe));max-height:88vh;overflow:auto}
+.modal h3{margin:0 0 6px;font-size:17px}
+.hidden{display:none!important}
+.toast{position:fixed;left:50%;bottom:calc(var(--nav) + var(--safe) + 16px);transform:translateX(-50%);
+  background:#111827;color:#fff;padding:10px 14px;border-radius:999px;font-size:12px;opacity:0;pointer-events:none;transition:.2s;z-index:60;max-width:90%;text-align:center}
+.toast.show{opacity:1}
+.progress{height:6px;background:#eef2f1;border-radius:99px;overflow:hidden;margin-top:8px}
+.progress i{display:block;height:100%;background:var(--brand)}
+.progress i.warn{background:var(--warn)}
+.progress i.danger{background:var(--danger)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal .hd{text-align:center;font-size:11px;color:var(--muted);padding:4px 0}
+.cal .day{border:0;background:#f9fafb;border-radius:12px;min-height:46px;padding:6px 4px;text-align:left}
+.cal .day.on{background:#fff;box-shadow:inset 0 0 0 1px var(--line)}
+.cal .day.today{box-shadow:inset 0 0 0 1.5px var(--brand)}
+.cal .day.sel{box-shadow:inset 0 0 0 1.5px #111827}
+.cal .day b{display:block;font-size:12px}
+.cal .day em{display:block;font-style:normal;font-size:10px;color:var(--danger);margin-top:2px}
+.cal .day i{display:block;font-style:normal;font-size:10px;color:#047857;margin-top:1px}
+.stack{display:flex;flex-direction:column;gap:8px}
+.switch{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0}
+.pillbar{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.pillbar button{flex:0 0 auto;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:12px;font-weight:600;padding:7px 12px;border-radius:999px}
+.pillbar button.active{background:#111827;color:#fff;border-color:#111827}
+</style>
 </head>
 <body>
-  <div class="overlay" id="overlay"></div>
+<div class="app">
+  <header class="top">
+    <h1 id="title">首页</h1>
+    <p id="sub">看清还能花多少</p>
+  </header>
+  <main class="main" id="view"></main>
+  <nav class="nav" id="nav">
+    <button type="button" data-page="home">首页</button>
+    <button type="button" data-page="add">记一笔</button>
+    <button type="button" data-page="cal">日历</button>
+    <button type="button" data-page="ai">决策</button>
+    <button type="button" data-page="settings">我的</button>
+  </nav>
+</div>
+<div class="modal-mask hidden" id="mask"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
 
-  <div class="app">
-    <aside class="sidebar" id="sidebar">
-      <div class="brand">
-        <div class="logo" id="logoBox">¥</div>
-        <div>
-          <h1>我的小账本</h1>
-          <p>资产 · 预算 · 决策 · 日历</p>
-        </div>
-      </div>
+<script>
+const KEY = 'sober_wallet_v3';
+const PROMPT = `你是一名理性、温和、注重预算边界的个人消费决策助手。你的任务不是鼓励用户消费，也不是否定一切非必要消费，而是帮助用户区分必要消费、合理改善、快乐消费、功能升级、重复购买、促销诱导和过量囤货。
+优先检查商品是否解决真实问题、是否已经存在替代品、是否符合预算、是否触碰安全余额、是否因平台推荐或优惠而被放大吸引力。
+允许预算内的快乐消费，但不允许用储蓄、安全余额、固定支出资金或其他必要预算弥补快乐预算超额。
+不羞辱用户，不使用"你太浪费""你不自律"等评价。发现消费理由不充分时，应清楚说明缺少什么证据，并建议具体冷静期。
+对正常吃饭、必要交通、消耗品补充等真实需求，不应施加不必要的道德压力。
+你的结论必须简明、明确、可执行，按以下结构回复：1.主要购买理由 2.当前最可能影响判断的因素 3.购买的真实收益 4.不购买的实际损失 5.建议 6.建议等待时间。`;
 
-      <nav class="nav">
-        <button class="nav-btn active" data-page="home">🏠 总览</button>
-        <button class="nav-btn" data-page="decide">🧭 消费决策</button>
-        <button class="nav-btn" data-page="calendar">📅 日历</button>
-        <button class="nav-btn" data-page="chart">📈 折线图</button>
-        <button class="nav-btn" data-page="budget">🎯 半月预算</button>
-        <button class="nav-btn" data-page="tags">🏷️ 标签管理</button>
-        <button class="nav-btn" data-page="accounts">💳 账户</button>
-        <button class="nav-btn" data-page="settings">⚙️ 设置</button>
-      </nav>
+const DEFAULT_TAGS = () => ([
+  {id:'fixed', name:'固定支出', color:'#475569', over:false, quiz:false, cool:0},
+  {id:'daily', name:'日常生活', color:'#0d9488', over:false, quiz:false, cool:0},
+  {id:'temp', name:'临时必要', color:'#0891b2', over:true, quiz:false, cool:0},
+  {id:'meal', name:'正常吃饭', color:'#16a34a', over:true, quiz:false, cool:0},
+  {id:'takeout', name:'外卖', color:'#f59e0b', over:false, quiz:false, cool:0},
+  {id:'snack', name:'零食饮料', color:'#db2777', over:false, quiz:true, cool:7},
+  {id:'consumable', name:'消耗品', color:'#7c3aed', over:false, quiz:false, cool:0},
+  {id:'upgrade', name:'功能升级', color:'#c2410c', over:false, quiz:true, cool:14},
+  {id:'stock', name:'囤货', color:'#a16207', over:false, quiz:true, cool:7},
+  {id:'hobby', name:'兴趣手工', color:'#0ea5e9', over:false, quiz:true, cool:7},
+  {id:'fun', name:'娱乐', color:'#dc2626', over:false, quiz:true, cool:7},
+  {id:'gift', name:'礼物', color:'#e11d48', over:false, quiz:false, cool:0},
+  {id:'other', name:'其他', color:'#94a3b8', over:true, quiz:true, cool:7}
+]);
 
-      <div class="sidebar-foot">
-        消费前先在“消费决策”里填计划，确认购买后才正式入账，从账户和预算扣除。
-      </div>
-    </aside>
+const DEFAULT = () => ({
+  settings: {
+    safe: 2000,
+    quizAmount: 25,
+    modelOn: false
+  },
+  api: {
+    baseURL: 'https://api.openai.com/v1',
+    apiKey: '',
+    model: 'gpt-4o-mini',
+    models: [],
+    timeout: 30000,
+    prompt: PROMPT
+  },
+  accounts: [
+    {id:'cash', kind:'cash', name:'现金', balance:0, note:''},
+    {id:'wechat', kind:'wechat', name:'微信', balance:0, note:'微信零钱'},
+    {id:'alipay', kind:'alipay', name:'支付宝', balance:0, note:'支付宝余额'},
+    {id:'bank', kind:'bank', name:'银行卡', balance:0, note:'主银行卡'}
+  ],
+  tags: DEFAULT_TAGS(),
+  longTags: [],
+  budgets: {},
+  goals: [],
+  plans: [],
+  txs: [],
+  chat: [],
+  ui: { month: ym(new Date()), setPanel: null, calDay: null }
+});
 
-    <main class="content">
-      <div class="mobile-topbar">
-        <button class="secondary" id="menuBtn">☰</button>
-        <div class="mobile-title">
-          <strong id="mobilePageTitle">总览</strong>
-          <span>我的小账本</span>
-        </div>
-        <button id="mobileAddBtn">＋</button>
-      </div>
+const KIND_LABEL = { cash:'现金', wechat:'微信', alipay:'支付宝', bank:'银行卡', custom:'自定义' };
 
-      <section class="page active" id="homePage">
-        <div class="page-head">
-          <div>
-            <h2>总览</h2>
-            <p>先看总资产、安全余额和本半月可消费金额。</p>
-          </div>
-          <button id="addBtnHome">＋ 新消费计划</button>
-        </div>
+function uid(){return Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-2)}
+function today(d=new Date()){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function ym(d){return today(d).slice(0,7)}
+function money(n){return '¥' + Number(n||0).toFixed(2).replace(/\.00$/,'')}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]))}
+function periodKey(date=today()){const d=+date.slice(8);return date.slice(0,7)+(d<=15?'-A':'-B')}
+function periodName(k){
+  const [y,m,half]=[k.slice(0,4),k.slice(5,7),k.slice(8)];
+  return half==='A' ? `${Number(m)}月1–15日` : `${Number(m)}月16–底`;
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(!raw) return DEFAULT();
+    const parsed = JSON.parse(raw);
+    const base = DEFAULT();
+    return Object.assign(base, parsed, {
+      settings: Object.assign(base.settings, parsed.settings||{}),
+      api: Object.assign(base.api, parsed.api||{}),
+      ui: Object.assign(base.ui, parsed.ui||{}),
+      tags: Array.isArray(parsed.tags) && parsed.tags.length ? parsed.tags : base.tags,
+      longTags: Array.isArray(parsed.longTags) ? parsed.longTags : []
+    });
+  }catch{ return DEFAULT(); }
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
 
-        <div class="home-hero">
-          <div class="card asset-card">
-            <div>
-              <div class="label">当前总资产</div>
-              <div class="big-money" id="totalBalance">¥0.00</div>
-            </div>
-            <div class="asset-sub-row">
-              <div><div class="label">安全余额</div><div class="v" id="safetyBalanceView">¥0.00</div></div>
-              <div><div class="label">专项储蓄</div><div class="v" id="savingsView">¥0.00</div></div>
-              <div><div class="label">当前可安排</div><div class="v" id="arrangeableView">¥0.00</div></div>
-            </div>
-          </div>
+let S = load();
+let page = 'home';
 
-          <div class="summary-grid">
-            <div class="card summary-card">
-              <div class="label">本半月可消费金额</div>
-              <div class="money blue" id="halfMonthLeft">¥0.00</div>
-              <div class="muted" id="halfMonthRange">—</div>
-            </div>
-            <div class="card summary-card">
-              <div class="label">本月收入 / 支出</div>
-              <div class="money" style="font-size:20px">
-                <span class="green" id="monthIncome">¥0.00</span> /
-                <span class="red" id="monthExpense">¥0.00</span>
-              </div>
-            </div>
-          </div>
-        </div>
+const $ = id => document.getElementById(id);
+function toast(t){
+  const el=$('toast'); el.textContent=t; el.classList.add('show');
+  clearTimeout(toast._t); toast._t=setTimeout(()=>el.classList.remove('show'),1800);
+}
+function openModal(html){ $('modal').innerHTML=html; $('mask').classList.remove('hidden'); }
+function closeModal(){ $('mask').classList.add('hidden'); $('modal').innerHTML=''; }
+$('mask').addEventListener('click', e => { if(e.target.id==='mask') closeModal(); });
 
-        <div class="quick-grid">
-          <div class="card mini-card">
-            <div class="card-title"><strong>今天支出</strong><span class="pill red">Today</span></div>
-            <div class="money red" id="todayExpense">¥0.00</div>
-            <div class="muted">今天所有支出合计</div>
-          </div>
-          <div class="card mini-card">
-            <div class="card-title"><strong>待确认计划</strong><span class="pill orange">待处理</span></div>
-            <div class="money" id="pendingPlanCount" style="font-size:23px">0 个</div>
-            <div class="muted">还没点“确认已购买”</div>
-          </div>
-          <div class="card mini-card">
-            <div class="card-title"><strong>冷静期中</strong><span class="pill purple">观察</span></div>
-            <div class="money purple" id="cooldownCount" style="font-size:23px">0 个</div>
-            <div class="muted">进入冷静清单等待</div>
-          </div>
-        </div>
+function totalAssets(){ return S.accounts.reduce((a,b)=>a+Number(b.balance||0),0); }
+function savings(){ return S.goals.reduce((a,b)=>a+Number(b.saved||0),0); }
+function free(){ return totalAssets() - Number(S.settings.safe||0) - savings(); }
+function budget(p=periodKey()){ if(!S.budgets[p]) S.budgets[p]={total:0, set:false, tagLimits:{}}; return S.budgets[p]; }
+function spentTotal(p=periodKey()){
+  return S.txs.filter(t=>t.type==='expense' && !t.refunded && periodKey(t.date)===p)
+    .reduce((a,b)=>a+Number(b.amount||0),0);
+}
+function spentByTag(tagId, p=periodKey()){
+  return S.txs.filter(t=>t.type==='expense' && !t.refunded && t.tagId===tagId && periodKey(t.date)===p)
+    .reduce((a,b)=>a+Number(b.amount||0),0);
+}
+function remain(p=periodKey()){ const b=budget(p); return b.set ? Number(b.total)-spentTotal(p) : null; }
+function acc(id){ return S.accounts.find(a=>a.id===id); }
+function tag(id){ return S.tags.find(t=>t.id===id) || S.tags.find(t=>t.id==='other') || {id:'', name:'其他', color:'#94a3b8'}; }
+function guessKind(name){
+  const n=String(name||'');
+  if(n.includes('现金')) return 'cash';
+  if(n.includes('微信')) return 'wechat';
+  if(n.includes('支付宝')) return 'alipay';
+  if(n.includes('卡')||n.includes('银行')) return 'bank';
+  return 'custom';
+}
 
-        <div class="page-head" style="margin-top:18px">
-          <div><h2 style="font-size:22px">最近记录</h2></div>
-        </div>
-        <div class="record-list" id="recentRecords"></div>
-      </section>
+async function callAI(messages){
+  if(!S.settings.modelOn) throw new Error('请先在"我的-模型 API"中启用模型');
+  if(!S.api.baseURL || !S.api.apiKey) throw new Error('请先填写 Base URL 和 API Key');
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), S.api.timeout||30000);
+  try{
+    const res = await fetch(S.api.baseURL.replace(/\/$/,'') + '/chat/completions', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+S.api.apiKey },
+      body: JSON.stringify({
+        model: S.api.model,
+        temperature: 0.4,
+        messages: [{role:'system', content:S.api.prompt||PROMPT}, ...messages]
+      }),
+      signal: ctrl.signal
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || '';
+  }catch(e){
+    if(e.name==='AbortError') throw new Error('请求超时');
+    if(/Failed to fetch|NetworkError|CORS/i.test(String(e.message||e)))
+      throw new Error('当前API服务不支持浏览器直接访问，需要更换支持浏览器调用的接口，或使用自己的代理服务。');
+    throw e;
+  }finally{ clearTimeout(t); }
+}
 
-      <section class="page" id="decidePage">
-        <div class="page-head">
-          <div>
-            <h2>消费决策</h2>
-            <p>消费前先填这里：预计金额、标签、账户、买什么。系统会根据预算状态提醒你，不会自动扣钱。</p>
-          </div>
-          <div class="actions">
-            <button id="addPlanBtn">＋ 新消费计划</button>
-          </div>
-        </div>
+function needQuiz(plan){
+  const t = tag(plan.tagId);
+  if(Number(plan.amount) > Number(S.settings.quizAmount||25)) return true;
+  if(t?.quiz) return true;
+  // 条件二：距预算上限不足¥30
+  const b = budget();
+  if(b.set){
+    const tagLimit = b.tagLimits?.[plan.tagId];
+    if(tagLimit){
+      const left = Number(tagLimit) - spentByTag(plan.tagId) - Number(plan.amount);
+      if(left <= 30) return true;
+    } else {
+      const left = remain() - Number(plan.amount);
+      if(left!=null && left <= 30) return true;
+    }
+  }
+  return false;
+}
 
-        <div class="panel" style="margin-bottom:14px">
-          <div class="card-title"><strong>待处理计划</strong><span class="pill orange" id="pendingCountPill">0</span></div>
-          <p class="muted">购买后点“确认已购买”才正式入账；没买可以标记放弃/延后/冷静期/删除。</p>
-        </div>
-        <div class="grid" id="planGrid"></div>
+function createPlan(data){
+  const plan = {
+    id: uid(), status:'open', amount:Number(data.amount), tagId:data.tagId,
+    accountId:data.accountId, item:data.item, date:data.date||today(),
+    note:data.note||'', inBudget:data.inBudget!==false, quiz:false, createdAt:Date.now()
+  };
+  plan.quiz = needQuiz(plan);
+  S.plans.unshift(plan); save();
+  return plan;
+}
 
-        <div class="page-head" style="margin-top:22px">
-          <div>
-            <h2 style="font-size:22px">冷静清单</h2>
-            <p>进入冷静期的计划显示在这里，到期后需要重新确认才能购买。</p>
-          </div>
-        </div>
-        <div class="grid" id="cooldownGrid"></div>
-      </section>
+function confirmPlan(id){
+  const p = S.plans.find(x=>x.id===id); if(!p || p.status!=='open') return;
+  const a = acc(p.accountId); if(!a) return toast('账户不存在');
+  if(Number(a.balance) < Number(p.amount) && !confirm('该账户余额不足，仍要入账吗？')) return;
+  a.balance = Number(a.balance) - Number(p.amount);
+  S.txs.unshift({
+    id:uid(), type:'expense', amount:Number(p.amount), accountId:p.accountId,
+    tagId:p.tagId, item:p.item, date:p.date, note:p.note||'', refunded:false, planId:p.id
+  });
+  p.status='done'; save();
+  toast(totalAssets() < S.settings.safe ? '已入账（已低于安全余额）' : '已确认购买');
+}
 
-      <section class="page" id="calendarPage">
-        <div class="page-head">
-          <div>
-            <h2>日历</h2>
-            <p>上面小横栏选择日期月份；下面按天折叠显示，收入和支出分成两个栏目。</p>
-          </div>
-          <button id="addBtnCalendar">＋ 新消费计划</button>
-        </div>
+function dropPlan(id){
+  const p=S.plans.find(x=>x.id===id); if(!p) return;
+  p.status='drop'; save(); toast('已放弃');
+}
+function delayPlan(id){
+  const p=S.plans.find(x=>x.id===id); if(!p) return;
+  p.status='delay'; save(); toast('已延后');
+}
+function cooldownPlan(id, days){
+  const p=S.plans.find(x=>x.id===id); if(!p) return;
+  p.status='cooldown'; p.coolUntil = Date.now() + Number(days||7)*86400000; p.coolDays=Number(days||7); save();
+  toast('已进入冷静期 '+days+' 天');
+}
+function deletePlan(id){
+  S.plans = S.plans.filter(x=>x.id!==id); save(); toast('已删除');
+}
+function doRefund(id){
+  const t=S.txs.find(x=>x.id===id); if(!t||t.refunded) return;
+  const a=acc(t.accountId); if(a) a.balance+=Number(t.amount);
+  t.refunded=true; save(); toast('已退款'); render();
+}
 
-        <div class="calendar-top-strip">
-          <div class="month-strip">
-            <button class="secondary small" id="prevMonthBtn">← 上月</button>
-            <input type="month" id="calendarMonth" />
-            <button class="secondary small" id="nextMonthBtn">下月 →</button>
-          </div>
-          <span class="pill blue" id="calendarMonthText">本月</span>
-        </div>
+function localReview(p){
+  const b = budget();
+  const left = remain();
+  const t = tag(p.tagId);
+  const overSafe = Number(totalAssets()-p.amount) < S.settings.safe;
+  const overBudget = b.set && left!=null && Number(p.amount)>left;
+  const lines = [
+    '主要购买理由：' + (p.note || p.item),
+    '当前最可能影响判断的因素：是否受促销/赠品/拼团影响，是否已有同类物品，需要你自己再确认一次。',
+    '购买的真实收益：能清楚说出解决什么具体问题，就比较值得买；只是"看着心动"就要打个问号。',
+    '不购买的实际损失：如果只是一时的心情波动，损失通常很小；如果真的会影响正常生活，损失才算实际。',
+    '建议：' + (overBudget ? '已超本半月剩余预算，不建议现在买' :
+      (overSafe ? '会触碰安全余额，不建议现在买' :
+      (p.quiz ? '证据还不够充分，建议先等一等或缩小规格' : '在预算内，可以正常购买'))),
+    '建议等待时间：' + ((t?.cool || (p.quiz?7:0)) + ' 天')
+  ];
+  return lines.join('\n');
+}
 
-        <div class="calendar-summary">
-          <div class="card summary-card">
-            <div class="label">这个月收入</div>
-            <div class="money green" id="calendarIncome">¥0.00</div>
-          </div>
-          <div class="card summary-card">
-            <div class="label">这个月支出</div>
-            <div class="money red" id="calendarExpense">¥0.00</div>
-          </div>
-        </div>
+async function sendChat(){
+  const input=$('ai_input'); const text=input.value.trim(); if(!text) return;
+  input.value='';
+  S.chat.push({role:'user', text, at:Date.now()}); save(); render();
+  await replyAI();
+}
+async function askAI(text){
+  S.chat.push({role:'user', text, at:Date.now()}); save(); render();
+  await replyAI();
+}
+async function replyAI(){
+  const hist = S.chat.slice(-8).map(m => ({role: m.role==='user'?'user':'assistant', content:m.text}));
+  let text='';
+  try{
+    if(S.settings.modelOn) text = await callAI(hist);
+    else text = '（未启用模型，本地简要建议）\n先看是否在本半月预算内，是否会碰到安全余额；若可替代或可等待，先放 7 天；快乐消费可以有，但别动专项储蓄和安全余额。';
+  }catch(e){ text = '出错了：' + e.message; }
+  S.chat.push({role:'assistant', text, at:Date.now()}); save(); render();
+  $('chatBox')?.lastElementChild?.scrollIntoView({behavior:'smooth', block:'end'});
+}
+async function reviewPlan(id){
+  const p=S.plans.find(x=>x.id===id); if(!p) return;
+  const b=budget();
+  const prompt = `请审批这笔计划：\n商品：${p.item}\n金额：${money(p.amount)}\n标签：${tag(p.tagId).name}\n备注：${p.note||''}\n总资产：${money(totalAssets())}\n安全余额：${money(S.settings.safe)}\n本半月预算：${b.set?money(b.total):'未设置'}　剩余：${b.set?money(remain()):'-'}`;
+  if(!S.settings.modelOn){
+    S.chat.push({role:'user', text:prompt, at:Date.now()});
+    S.chat.push({role:'assistant', text:localReview(p), at:Date.now()});
+    save(); render(); return;
+  }
+  await askAI(prompt);
+}
 
-        <div class="calendar-layout">
-          <div class="panel">
-            <div class="weekday-grid" id="weekdayGrid"></div>
-            <div class="calendar-grid" id="calendarGrid"></div>
-          </div>
-          <div class="panel">
-            <div class="card-title"><strong>每日明细</strong><span class="pill orange">可折叠</span></div>
-            <p class="muted">每一天分成“收入”和“支出”两个栏目，不混在一起。内部转账单独显示，不计入收支。</p>
-            <div id="calendarDetails"></div>
-          </div>
-        </div>
-      </section>
+/* ---------- views ---------- */
+function setChrome(){
+  const map = {
+    home:['首页','看清还能花多少'],
+    add:['记一笔','先计划，买完再确认'],
+    cal:['日历','按天回看收支'],
+    ai:['消费决策','问卷与AI审批'],
+    settings:['我的','账户、预算与模型']
+  };
+  const m = map[page];
+  $('title').textContent = m[0];
+  $('sub').textContent = m[1];
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.page===page));
+}
 
-      <section class="page" id="chartPage">
-        <div class="page-head">
-          <div>
-            <h2>折线图</h2>
-            <p>按标签画线。不同标签用不同颜色，方便看临时消费、生活用品、订阅等趋势。</p>
-          </div>
-          <button id="addBtnChart">＋ 新消费计划</button>
-        </div>
-
-        <div class="panel chart-panel">
-          <div class="chart-controls">
-            <label>月份<input type="month" id="chartMonth" /></label>
-            <label>类型
-              <select id="chartType">
-                <option value="expense">支出</option>
-                <option value="income">收入</option>
-              </select>
-            </label>
-            <label>显示方式
-              <select id="chartMode">
-                <option value="daily">每天金额</option>
-                <option value="cumulative">月内累计</option>
-              </select>
-            </label>
-          </div>
-          <div class="chart-wrap"><canvas id="lineChart"></canvas></div>
-          <div class="legend" id="chartLegend"></div>
-        </div>
-      </section>
-
-      <section class="page" id="budgetPage">
-        <div class="page-head">
-          <div>
-            <h2>半月预算</h2>
-            <p id="budgetPeriodLabel">每月分两个周期：1–15日 / 16日–月底。当前周期下的每个标签都有独立预算。</p>
-          </div>
-          <div class="actions">
-            <div class="segmented" style="width:220px">
-              <button type="button" id="periodABtn" class="active">上半月 1-15</button>
-              <button type="button" id="periodBBtn">下半月 16-底</button>
-            </div>
-            <button id="addBudgetBtn">＋ 新预算标签</button>
-          </div>
-        </div>
-
-        <div class="panel" style="margin-bottom:14px">
-          <div class="card-title">
-            <strong>本周期总览</strong>
-            <span class="pill blue" id="budgetPeriodPill">—</span>
-          </div>
-          <div class="calendar-summary" style="margin-top:12px;margin-bottom:0">
-            <div>
-              <div class="label">本周期预算合计</div>
-              <div class="money" id="periodTotalBudget">¥0.00</div>
-            </div>
-            <div>
-              <div class="label">本周期已用</div>
-              <div class="money red" id="periodTotalSpent">¥0.00</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="grid" id="budgetGrid"></div>
-
-        <div class="page-head" style="margin-top:22px">
-          <div><h2 style="font-size:22px">安全余额与专项储蓄</h2><p>安全余额是一条底线；专项储蓄是单独攒的钱，两者都不建议动用来补快乐消费。</p></div>
-        </div>
-        <div class="grid">
-          <div class="card panel">
-            <div class="card-title"><strong>安全余额</strong><span class="pill red">底线</span></div>
-            <div class="money red" id="safetyBalanceCard">¥0.00</div>
-            <label style="margin-top:12px">修改安全余额<input id="safetyBalanceInput" type="number" step="0.01" /></label>
-            <button class="secondary small" id="saveSafetyBtn" style="margin-top:8px">保存（不留记录）</button>
-          </div>
-          <div class="card panel">
-            <div class="card-title"><strong>专项储蓄目标</strong><span class="pill purple">储蓄</span></div>
-            <div id="savingsList" class="simple-list" style="margin-top:8px"></div>
-            <button class="secondary small" id="addSavingsBtn" style="margin-top:10px">＋ 新储蓄目标</button>
-          </div>
-        </div>
-      </section>
-
-      <section class="page" id="tagsPage">
-        <div class="page-head">
-          <div>
-            <h2>标签管理</h2>
-            <p>消费标签用于记账和半月预算；长期想法标签只是先记下来，不占用预算，也不会自动消失。</p>
-          </div>
-          <div class="actions">
-            <button class="secondary" id="addLongTagBtn">＋ 长期想法标签</button>
-            <button id="addTagBtn">＋ 消费标签</button>
-          </div>
-        </div>
-        <div class="card-title" style="margin-bottom:8px"><strong>消费标签</strong><span class="pill blue">用于记账 / 预算</span></div>
-        <div class="grid" id="tagGrid"></div>
-
-        <div class="page-head" style="margin-top:22px">
-          <div><h2 style="font-size:22px">长期想法清单</h2><p>“我有个想法，但暂时不想花钱” 放这里，不占预算，需要时可以转成消费计划。</p></div>
-        </div>
-        <div class="grid" id="longTagGrid"></div>
-      </section>
-
-      <section class="page" id="accountsPage">
-        <div class="page-head">
-          <div>
-            <h2>账户</h2>
-            <p>现金、微信、支付宝、银行卡分开管理。账户之间转账不算收入支出，只改变余额。</p>
-          </div>
-          <div class="actions">
-            <button class="secondary" id="addTransferBtn">⇄ 内部转账</button>
-            <button id="addAccountBtn">＋ 新账户</button>
-          </div>
-        </div>
-        <div class="grid" id="accountGrid"></div>
-      </section>
-
-      <section class="page" id="settingsPage">
-        <div class="page-head">
-          <div>
-            <h2>设置</h2>
-            <p>导入导出、恢复示例、清理缓存都放在这里。</p>
-          </div>
-        </div>
-        <div class="settings-grid">
-          <div class="panel">
-            <div class="card-title"><strong>备份与恢复</strong><span class="pill orange">重要</span></div>
-            <p class="muted">数据存在当前浏览器。换设备、清理浏览器前建议先导出 JSON。</p>
-            <div class="toolbar" style="margin-top:14px">
-              <button id="exportBtn">导出 JSON</button>
-              <button class="secondary" id="exportCsvBtn">导出 CSV 流水</button>
-              <button class="secondary" id="importBtn">导入 JSON</button>
-              <input id="importFile" type="file" accept="application/json,.json" hidden />
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="card-title"><strong>危险操作</strong><span class="pill red">谨慎</span></div>
-            <p class="muted">恢复示例会覆盖当前数据；清空流水不会自动恢复账户余额。</p>
-            <div class="toolbar" style="margin-top:14px">
-              <button class="danger" id="clearTxBtn">清空流水</button>
-              <button class="danger" id="resetBtn">恢复初始示例</button>
-            </div>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <!-- 消费计划弹窗（消费前确认） -->
-  <dialog id="planDialog">
-    <form id="planForm">
-      <div class="modal-head">
-        <h3 id="planDialogTitle">新消费计划</h3>
-        <button type="button" class="secondary" data-close="planDialog">关闭</button>
-      </div>
-      <div class="modal-body">
-        <label>预计消费金额<input id="planAmount" type="number" min="0" step="0.01" required placeholder="比如 28.5" /></label>
-        <label>购买什么<input id="planItem" required placeholder="比如：洗衣液 / 新耳机" /></label>
-        <label>消费标签<select id="planTag" required></select></label>
-        <label>使用哪个账户付款<select id="planAccount" required></select></label>
-        <label style="display:flex;flex-direction:row;align-items:center;gap:8px">
-          <input id="planInBudget" type="checkbox" style="width:auto" checked />
-          <span style="color:var(--text);font-weight:700">已经纳入本半月预算</span>
-        </label>
-        <div class="warn-box" id="planWarnBox"></div>
-      </div>
-      <div class="modal-actions">
-        <button type="submit">保存计划</button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- 计划详情 / 确认购买 -->
-  <dialog id="planDetailDialog">
-    <div class="modal-head">
-      <h3>消费计划</h3>
-      <button type="button" class="secondary" data-close="planDetailDialog">关闭</button>
+function viewHome(){
+  const b = budget();
+  const left = remain();
+  const used = spentTotal();
+  const pct = b.set ? Math.min(100, used/Math.max(b.total,.01)*100) : 0;
+  const pctClass = pct>=100?'danger':pct>=85?'warn':'';
+  const pending = S.plans.filter(p=>p.status==='open').slice(0,8);
+  const cooling = S.plans.filter(p=>p.status==='cooldown');
+  return `
+  <div class="card soft">
+    <div class="hero">
+      <div class="metric"><span>总资产</span><b>${money(totalAssets())}</b></div>
+      <div class="metric"><span>当前可安排</span><b>${money(free())}</b></div>
+      <div class="metric"><span>安全余额</span><b>${money(S.settings.safe)}</b></div>
+      <div class="metric"><span>专项储蓄</span><b>${money(savings())}</b></div>
     </div>
-    <div class="modal-body" id="planDetailBody"></div>
-    <div class="modal-actions" id="planDetailActions"></div>
-  </dialog>
-
-  <dialog id="tagDialog">
-    <form id="tagForm">
-      <div class="modal-head">
-        <h3 id="tagDialogTitle">消费标签</h3>
-        <button type="button" class="secondary" data-close="tagDialog">关闭</button>
+    <div style="margin-top:14px">
+      <div class="row"><span class="muted">${periodName(periodKey())}</span>
+        <button class="btn sm ghost" type="button" id="goBudget">设预算</button></div>
+      <div style="margin-top:8px;font-size:13px">本半月还能花
+        <b style="font-size:18px;margin-left:4px">${b.set?money(left):'未设置'}</b>
       </div>
-      <div class="modal-body">
-        <label>标签名称<input id="tagName" required placeholder="比如：外卖 / 生活用品" /></label>
-        <label>颜色
-          <select id="tagColor">
-            <option value="#2563eb">蓝色</option>
-            <option value="#dc2626">红色</option>
-            <option value="#16a34a">绿色</option>
-            <option value="#f59e0b">橙色</option>
-            <option value="#7c3aed">紫色</option>
-            <option value="#0891b2">青色</option>
-            <option value="#db2777">粉色</option>
-            <option value="#475569">灰蓝色</option>
-          </select>
-        </label>
-        <label style="display:flex;flex-direction:row;align-items:center;gap:8px">
-          <input id="tagAllowOverspend" type="checkbox" style="width:auto" />
-          <span style="color:var(--text);font-weight:700">允许超出该标签预算</span>
-        </label>
+      ${b.set?`<div class="progress"><i class="${pctClass}" style="width:${pct}%"></i></div>
+      <div class="muted" style="margin-top:6px">已花 ${money(used)} / ${money(b.total)}</div>`:''}
+    </div>
+  </div>
+  <div class="section-title"><h2>待处理计划</h2><button class="btn sm line" type="button" data-go="add">新建</button></div>
+  <div class="card">
+    ${pending.length? pending.map(p=>planItem(p)).join('') : `<div class="empty">没有待处理的消费计划<br>想买时先记一笔计划，买了再确认</div>`}
+  </div>
+  ${cooling.length ? `
+  <div class="section-title"><h2>冷静清单</h2><span class="muted">${cooling.length} 个</span></div>
+  <div class="card">${cooling.map(p=>planItem(p)).join('')}</div>` : ''}`;
+}
+
+function planItem(p){
+  const t = tag(p.tagId);
+  const daysLeft = p.status==='cooldown' && p.coolUntil ? Math.max(0, Math.ceil((p.coolUntil-Date.now())/86400000)) : null;
+  return `<div class="item">
+    <div class="row">
+      <div>
+        <div style="font-weight:600"><span class="dot" style="background:${t.color}"></span>${esc(p.item)}</div>
+        <div class="muted">${esc(t.name)} · ${p.date}${p.inBudget===false?' · 未纳入预算':''}</div>
+        ${daysLeft!==null?`<div class="muted" style="color:#6d28d9">冷静期剩余 ${daysLeft} 天</div>`:''}
       </div>
-      <div class="modal-actions"><button type="submit">保存标签</button></div>
-    </form>
-  </dialog>
-
-  <dialog id="longTagDialog">
-    <form id="longTagForm">
-      <div class="modal-head">
-        <h3 id="longTagDialogTitle">长期想法标签</h3>
-        <button type="button" class="secondary" data-close="longTagDialog">关闭</button>
+      <div style="text-align:right">
+        <div style="font-weight:700">${money(p.amount)}</div>
+        ${p.quiz?'<span class="tag warn">建议确认</span>':'<span class="tag">计划</span>'}
       </div>
-      <div class="modal-body">
-        <label>想法名称<input id="longTagName" required placeholder="比如：新相机 / 换手机" /></label>
-        <label>备注<textarea id="longTagNote" rows="3" placeholder="随便记点想法，不占预算"></textarea></label>
-      </div>
-      <div class="modal-actions"><button type="submit">保存</button></div>
-    </form>
-  </dialog>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn sm" type="button" data-confirm="${p.id}">已购买</button>
+      <button class="btn sm line" type="button" data-review="${p.id}">问 AI</button>
+      ${p.status!=='cooldown'?`<button class="btn sm line" type="button" data-cooldown="${p.id}">冷静期</button>`:''}
+      <button class="btn sm line" type="button" data-delay="${p.id}">延后</button>
+      <button class="btn sm line" type="button" data-drop="${p.id}">放弃</button>
+      <button class="btn sm danger" type="button" data-del-plan="${p.id}">删除</button>
+    </div>
+  </div>`;
+}
 
-  <dialog id="budgetDialog">
-    <form id="budgetForm">
-      <div class="modal-head">
-        <h3>半月预算标签</h3>
-        <button type="button" class="secondary" data-close="budgetDialog">关闭</button>
-      </div>
-      <div class="modal-body">
-        <label>预算名称<input id="budgetName" required placeholder="比如：零食预算" /></label>
-        <label>绑定消费标签<select id="budgetTag" required></select></label>
-        <label>本周期预算金额<input id="budgetLimit" type="number" min="0" step="0.01" required placeholder="比如 100" /></label>
-        <label>说明<textarea id="budgetNote" rows="3" placeholder="比如：零食饮料都记到这里"></textarea></label>
-      </div>
-      <div class="modal-actions"><button type="submit">保存预算</button></div>
-    </form>
-  </dialog>
-
-  <dialog id="accountDialog">
-    <form id="accountForm">
-      <div class="modal-head">
-        <h3>账户</h3>
-        <button type="button" class="secondary" data-close="accountDialog">关闭</button>
-      </div>
-      <div class="modal-body">
-        <label>账户类型
-          <select id="accountKind">
-            <option value="cash">现金</option>
-            <option value="wechat">微信余额</option>
-            <option value="alipay">支付宝余额</option>
-            <option value="bank">银行卡</option>
-            <option value="custom">自定义</option>
-          </select>
-        </label>
-        <label>账户名称<input id="accountName" required placeholder="现金 / 微信 / 支付宝 / 银行卡" /></label>
-        <label>当前余额<input id="accountBalance" type="number" step="0.01" required placeholder="比如 1200" /></label>
-        <label>备注<input id="accountNote" placeholder="比如：主银行卡" /></label>
-      </div>
-      <div class="modal-actions"><button type="submit">保存账户</button></div>
-    </form>
-  </dialog>
-
-  <dialog id="transferDialog">
-    <form id="transferForm">
-      <div class="modal-head">
-        <h3>内部转账</h3>
-        <button type="button" class="secondary" data-close="transferDialog">关闭</button>
-      </div>
-      <div class="modal-body">
-        <p class="muted">账户之间转账不算收入或支出，不影响总资产，只改变各账户余额。</p>
-        <label>从<select id="transferFrom" required></select></label>
-        <label>到<select id="transferTo" required></select></label>
-        <label>金额<input id="transferAmount" type="number" min="0" step="0.01" required placeholder="比如 500" /></label>
-        <label>备注<input id="transferNote" placeholder="比如：银行卡转入微信" /></label>
-      </div>
-      <div class="modal-actions"><button type="submit">保存转账</button></div>
-    </form>
-  </dialog>
-
-  <dialog id="savingsDialog">
-    <form id="savingsForm">
-      <div class="modal-head">
-        <h3>专项储蓄目标</h3>
-        <button type="button" class="secondary" data-close="savingsDialog">关闭</button>
-      </div>
-      <div class="modal-body">
-        <label>目标名称<input id="savingsName" required placeholder="比如：旅行基金" /></label>
-        <label>金额<input id="savingsAmount" type="number" min="0" step="0.01" required placeholder="比如 3000" /></label>
-        <label>备注<input id="savingsNote" placeholder="选填" /></label>
-      </div>
-      <div class="modal-actions"><button type="submit">保存</button></div>
-    </form>
-  </dialog>
-
-  <div class="toast" id="toast"></div>
-
-  <script>
-    const STORAGE_KEY = "my-budget-wallet-sidebar-v2";
-    const LEGACY_KEYS = ["my-budget-wallet-sidebar-v1", "my-budget-wallet-v2", "my-budget-wallet-v1"];
-
-    const DEFAULT_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#f59e0b", "#7c3aed", "#0891b2", "#db2777", "#475569"];
-    const ACCOUNT_KIND_LABEL = { cash: "现金", wechat: "微信余额", alipay: "支付宝余额", bank: "银行卡", custom: "自定义" };
-
-    function id() {
-      return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    }
-
-    const defaultState = {
-      tags: [
-        { id: id(), name: "固定支出", color: "#475569", allowOverspend: false },
-        { id: id(), name: "日常生活", color: "#2563eb", allowOverspend: false },
-        { id: id(), name: "临时必要", color: "#0891b2", allowOverspend: false },
-        { id: id(), name: "正常吃饭", color: "#16a34a", allowOverspend: true },
-        { id: id(), name: "外卖", color: "#f59e0b", allowOverspend: false },
-        { id: id(), name: "零食饮料", color: "#db2777", allowOverspend: false },
-        { id: id(), name: "消耗品", color: "#7c3aed", allowOverspend: false },
-        { id: id(), name: "娱乐", color: "#dc2626", allowOverspend: false },
-        { id: id(), name: "其他", color: "#94a3b8", allowOverspend: true }
-      ],
-      longTermTags: [],
-      accounts: [
-        { id: id(), kind: "cash", name: "现金", balance: 0, note: "" },
-        { id: id(), kind: "wechat", name: "微信", balance: 0, note: "微信零钱" },
-        { id: id(), kind: "alipay", name: "支付宝", balance: 0, note: "支付宝余额" },
-        { id: id(), kind: "bank", name: "银行卡", balance: 0, note: "主银行卡" }
-      ],
-      budgets: [], // {id, name, tagId, limit, note, periodKey}
-      transactions: [], // {id, type: income|expense|transfer, amount, accountId, toAccountId, tagId, note, date, planId}
-      plans: [], // {id, amount, item, tagId, accountId, inBudget, status, createdDate, confirmedDate, cooldownDays, cooldownUntil}
-      safetyBalance: 2000,
-      savingsGoals: []
-    };
-
-    let state = load();
-    let editingTagId = null;
-    let editingLongTagId = null;
-    let editingBudgetId = null;
-    let editingAccountId = null;
-    let currentPlanDetailId = null;
-    let currentPeriod = "A"; // A = 1-15, B = 16-end
-
-    const $ = s => document.querySelector(s);
-    const $$ = s => [...document.querySelectorAll(s)];
-
-    function load() {
-      try {
-        let raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) {
-          for (const key of LEGACY_KEYS) {
-            raw = localStorage.getItem(key);
-            if (raw) break;
-          }
-        }
-        return migrate(raw ? JSON.parse(raw) : structuredClone(defaultState));
-      } catch {
-        return structuredClone(defaultState);
+function planWarnHTML(amount, tagId, inBudget){
+  if(!amount) return '';
+  const msgs=[]; let level='ok';
+  if(totalAssets()-amount < S.settings.safe){ msgs.push('这笔花费后资产可能低于安全余额 '+money(S.settings.safe)+'。'); level='danger'; }
+  const b=budget();
+  if(inBudget){
+    if(b.set){
+      const tagLimit=b.tagLimits?.[tagId];
+      if(tagLimit){
+        const left=Number(tagLimit)-spentByTag(tagId)-amount;
+        if(left<0){ msgs.push('该标签本周期预算已超出 '+money(Math.abs(left))+'。'); level=level==='danger'?'danger':'warn'; }
+        else if(left<=30){ msgs.push('购买后该标签本周期只剩 '+money(left)+'，接近上限。'); level=level==='danger'?'danger':'warn'; }
+      } else {
+        const left=remain()-amount;
+        if(left<0){ msgs.push('本半月总预算已超出 '+money(Math.abs(left))+'。'); level=level==='danger'?'danger':'warn'; }
+        else if(left<=30){ msgs.push('购买后本半月总预算只剩 '+money(left)+'。'); level=level==='danger'?'danger':'warn'; }
       }
+    } else {
+      msgs.push('本半月预算还没设置，去首页"设预算"看看。'); level=level==='danger'?'danger':'warn';
     }
+  } else {
+    msgs.push('这笔未纳入预算，会挤占其他计划。'); level=level==='danger'?'danger':'warn';
+  }
+  if(amount>Number(S.settings.quizAmount||25)) msgs.push('金额超过 '+money(S.settings.quizAmount||25)+'，建议确认前再想一下。');
+  const cls = level==='danger'?'danger':level==='warn'?'warn':'ok';
+  const bg = level==='danger'?'#fef2f2':level==='warn'?'#fffbeb':'#ecfdf5';
+  const col = level==='danger'?'#b91c1c':level==='warn'?'#b45309':'#047857';
+  return `<div style="margin-top:10px;padding:10px 12px;border-radius:12px;background:${bg};color:${col};font-size:12.5px;line-height:1.6">${msgs.join(' ')||'在预算范围内，可以正常安排。'}</div>`;
+}
 
-    function migrate(input) {
-      const s = {
-        tags: Array.isArray(input.tags) ? input.tags : [],
-        longTermTags: Array.isArray(input.longTermTags) ? input.longTermTags : [],
-        accounts: Array.isArray(input.accounts) ? input.accounts : [],
-        budgets: Array.isArray(input.budgets) ? input.budgets : [],
-        transactions: Array.isArray(input.transactions) ? input.transactions : [],
-        plans: Array.isArray(input.plans) ? input.plans : [],
-        safetyBalance: typeof input.safetyBalance === "number" ? input.safetyBalance : 2000,
-        savingsGoals: Array.isArray(input.savingsGoals) ? input.savingsGoals : []
+function viewAdd(){
+  const tags = S.tags.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  const accs = S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)} ${money(a.balance)}</option>`).join('');
+  return `
+  <div class="card">
+    <label class="field"><span>预计消费金额</span><input id="a_amount" type="number" min="0" step="0.01" placeholder="0.00"></label>
+    <label class="field"><span>买什么</span><input id="a_item" type="text" placeholder="一句话写清"></label>
+    <label class="field"><span>消费标签</span><select id="a_tag">${tags}</select></label>
+    <label class="field"><span>付款账户</span><select id="a_acc">${accs}</select></label>
+    <label class="field"><span>日期</span><input id="a_date" type="date" value="${today()}"></label>
+    <div class="switch"><span>已经纳入本半月预算</span><input id="a_inbudget" type="checkbox" checked></div>
+    <label class="field"><span>备注（可选）</span><textarea id="a_note" placeholder="为什么想买"></textarea></label>
+    <div id="a_warn"></div>
+    <button class="btn block" type="button" id="btnPlan" style="margin-top:12px">生成计划</button>
+    <p class="muted" style="margin:10px 0 0">不会立刻扣款。真正买了，再在首页点"已购买"。</p>
+  </div>
+  <div class="card">
+    <div class="section-title" style="margin:0 0 4px"><h2 style="font-size:14px">快捷</h2></div>
+    <button class="list-btn" type="button" id="btnIncome"><strong>记收入</strong><span>工资、红包</span></button>
+    <button class="list-btn" type="button" id="btnTransfer"><strong>账户互转</strong><span>不影响总资产</span></button>
+  </div>
+  <div class="card">
+    <div class="section-title" style="margin:0 0 4px"><h2 style="font-size:14px">长期想法清单</h2><button class="btn sm line" type="button" id="btnAddLong">＋想法</button></div>
+    ${S.longTags.length? S.longTags.map(t=>`<div class="item row">
+        <div><strong>${esc(t.name)}</strong><div class="muted">${esc(t.note||'')}</div></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn sm line" type="button" data-long-use="${t.id}">转计划</button>
+          <button class="btn sm danger" type="button" data-long-del="${t.id}">删除</button>
+        </div>
+      </div>`).join('') : `<div class="empty">"我有个想法，但暂时不想花钱"<br>先记这里，不占预算</div>`}
+  </div>`;
+}
+
+function viewCal(){
+  const month = S.ui.month || ym(new Date());
+  const [y,m] = month.split('-').map(Number);
+  const first = new Date(y,m-1,1).getDay();
+  const days = new Date(y,m,0).getDate();
+  const monTxs = S.txs.filter(t=>t.date.startsWith(month));
+  const monIncome = monTxs.filter(t=>t.type==='income').reduce((a,b)=>a+Number(b.amount),0);
+  const monExpense = monTxs.filter(t=>t.type==='expense' && !t.refunded).reduce((a,b)=>a+Number(b.amount),0);
+  let cells = '';
+  for(let i=0;i<first;i++) cells += '<div></div>';
+  for(let d=1;d<=days;d++){
+    const ds = `${month}-${String(d).padStart(2,'0')}`;
+    const exp = S.txs.filter(t=>t.date===ds && t.type==='expense' && !t.refunded).reduce((a,b)=>a+Number(b.amount),0);
+    const inc = S.txs.filter(t=>t.date===ds && t.type==='income').reduce((a,b)=>a+Number(b.amount),0);
+    const sel = S.ui.calDay===ds ? 'sel' : '';
+    cells += `<button type="button" class="day on ${ds===today()?'today':''} ${sel}" data-day="${ds}">
+      <b>${d}</b>${inc?`<i>+${inc.toFixed(0)}</i>`:''}${exp?`<em>-${exp.toFixed(0)}</em>`:''}
+    </button>`;
+  }
+  const dayFilter = S.ui.calDay;
+  const list = (dayFilter ? S.txs.filter(t=>t.date===dayFilter) : monTxs)
+    .sort((a,b)=>b.date.localeCompare(a.date) || (b.id>a.id?1:-1)).slice(0,60);
+  const income = list.filter(t=>t.type==='income');
+  const expense = list.filter(t=>t.type==='expense');
+  const transfer = list.filter(t=>t.type==='transfer');
+  return `
+  <div class="card">
+    <div class="row">
+      <button class="btn sm line" type="button" id="prevM">← 上月</button>
+      <strong>${month}</strong>
+      <button class="btn sm line" type="button" id="nextM">下月 →</button>
+    </div>
+    <div class="hero" style="margin-top:10px">
+      <div class="metric"><span>本月收入</span><b style="color:#047857">${money(monIncome)}</b></div>
+      <div class="metric"><span>本月支出</span><b style="color:#b91c1c">${money(monExpense)}</b></div>
+    </div>
+    <div class="cal" style="margin-top:12px">
+      ${['日','一','二','三','四','五','六'].map(x=>`<div class="hd">${x}</div>`).join('')}
+      ${cells}
+    </div>
+  </div>
+  <div class="section-title"><h2>${dayFilter?dayFilter+' 明细':'本月流水'}</h2>${dayFilter?'<button class="btn sm line" type="button" id="clearDay">看全月</button>':''}</div>
+  <div class="card" id="dayList">
+    ${income.length?`<div class="muted" style="margin-bottom:4px;color:#047857">收入</div>${income.map(txLine).join('')}`:''}
+    ${expense.length?`<div class="muted" style="margin:10px 0 4px;color:#b91c1c">支出</div>${expense.map(txLine).join('')}`:''}
+    ${transfer.length?`<div class="muted" style="margin:10px 0 4px">内部转账（不计收支）</div>${transfer.map(txLine).join('')}`:''}
+    ${!list.length?`<div class="empty">这里还没有流水</div>`:''}
+  </div>`;
+}
+
+function txLine(t){
+  const sign = t.type==='income'?'+':t.type==='expense'?'-':'';
+  const color = t.type==='income'?'#047857':t.type==='expense'?'#b91c1c':'#0d9488';
+  const tagName = t.tagId ? esc(tag(t.tagId).name) : '';
+  return `<div class="item">
+    <div class="row">
+      <div>
+        <div style="font-weight:600${t.refunded?';text-decoration:line-through;color:#9ca3af':''}">${esc(t.item||t.type)}</div>
+        <div class="muted">${t.date} · ${esc(acc(t.accountId)?.name||'未知账户')}${tagName?' · '+tagName:''}${t.refunded?' · 已退款':''}</div>
+      </div>
+      <div style="font-weight:700;color:${color}">${sign}${money(t.amount).slice(1)}</div>
+    </div>
+    <div style="margin-top:8px;display:flex;gap:8px">
+      ${t.type==='expense' && !t.refunded ? `<button class="btn sm line" type="button" data-refund="${t.id}">退款</button>`:''}
+      <button class="btn sm danger" type="button" data-del-tx="${t.id}">删除</button>
+    </div>
+  </div>`;
+}
+
+function viewAI(){
+  const openPlans = S.plans.filter(p=>p.status==='open'||p.status==='cooldown');
+  return `
+  <div class="card">
+    <label class="field" style="margin:0"><span>带上一个计划一起问（可选）</span>
+      <select id="ai_plan">
+        <option value="">不关联</option>
+        ${openPlans.map(p=>`<option value="${p.id}">${esc(p.item)} · ${money(p.amount)}</option>`).join('')}
+      </select>
+    </label>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn sm line" type="button" id="aiReview">审批计划</button>
+      <button class="btn sm line" type="button" id="aiClear">清空对话</button>
+    </div>
+  </div>
+  <div class="card chat" id="chatBox">
+    ${S.chat.length? S.chat.map((m,i)=>bubble(m,i)).join('') : `<div class="empty">有纠结就直接问<br>也可以先选一个计划再问 AI</div>`}
+  </div>
+  <div class="card">
+    <div class="composer">
+      <textarea id="ai_input" placeholder="例如：想买耳机，但不是刚需"></textarea>
+      <button class="btn" type="button" id="ai_send">发送</button>
+    </div>
+    <div class="muted" style="margin-top:8px">${S.settings.modelOn?('模型：'+esc(S.api.model)):'未启用模型时，使用本地简要建议'}</div>
+  </div>`;
+}
+
+function bubble(m, i){
+  return `<div class="bubble ${m.role==='user'?'me':'ai'}" data-i="${i}">
+    ${esc(m.text)}
+    <div class="tools">
+      <button class="icon" type="button" data-copy="${i}" title="复制">${svgCopy()}</button>
+      <button class="icon" type="button" data-edit="${i}" title="编辑">${svgEdit()}</button>
+      <button class="icon" type="button" data-del="${i}" title="删除">${svgDel()}</button>
+    </div>
+  </div>`;
+}
+function svgCopy(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'}
+function svgEdit(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>'}
+function svgDel(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>'}
+
+function viewSettings(){
+  if(S.ui.setPanel) return viewSetPanel(S.ui.setPanel);
+  return `
+  <div class="card">
+    <button class="list-btn" type="button" data-panel="accounts"><strong>账户</strong><span>${money(totalAssets())}</span></button>
+    <button class="list-btn" type="button" data-panel="budget"><strong>半月预算</strong><span>${periodName(periodKey())}</span></button>
+    <button class="list-btn" type="button" data-panel="tags"><strong>消费标签</strong><span>${S.tags.length} 个</span></button>
+    <button class="list-btn" type="button" data-panel="goals"><strong>专项储蓄</strong><span>${money(savings())}</span></button>
+  </div>
+  <div class="card">
+    <button class="list-btn" type="button" data-panel="model"><strong>模型 API</strong><span>${S.settings.modelOn?'已启用':'未启用'}</span></button>
+    <button class="list-btn" type="button" data-panel="prefs"><strong>通用设置</strong><span>安全余额等</span></button>
+    <button class="list-btn" type="button" data-panel="data"><strong>备份与清理</strong><span>导入导出</span></button>
+  </div>`;
+}
+
+function viewSetPanel(panel){
+  const back = `<button class="btn sm line" type="button" id="setBack">返回</button>`;
+  if(panel==='accounts'){
+    return `<div class="section-title"><h2>账户</h2>${back}</div>
+    <div class="card">
+      ${S.accounts.map(a=>`<div class="item row">
+        <div><strong>${esc(a.name)}</strong><div class="muted">${KIND_LABEL[a.kind]||'自定义'} · ${money(a.balance)}</div></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn sm line" type="button" data-edit-acc="${a.id}">调整</button>
+          <button class="btn sm danger" type="button" data-del-acc="${a.id}">删除</button>
+        </div>
+      </div>`).join('')}
+      <button class="btn block line" type="button" id="addAcc" style="margin-top:8px">新增账户</button>
+    </div>`;
+  }
+  if(panel==='budget'){
+    const b = budget();
+    return `<div class="section-title"><h2>半月预算</h2>${back}</div>
+    <div class="card">
+      <div class="muted" style="margin-bottom:10px">${periodName(periodKey())}（当前周期）</div>
+      <label class="field"><span>本半月总预算</span><input id="b_total" type="number" value="${b.total||0}"></label>
+      <button class="btn block" type="button" id="saveBudget">保存</button>
+    </div>
+    <div class="section-title"><h2>按标签细分预算（可选）</h2></div>
+    <div class="card">
+      ${S.tags.map(t=>{
+        const lim = b.tagLimits?.[t.id] || '';
+        const sp = spentByTag(t.id);
+        return `<div class="item">
+          <div class="row"><span><span class="dot" style="background:${t.color}"></span>${esc(t.name)}</span><span class="muted">已用 ${money(sp)}</span></div>
+          <input data-tag-limit="${t.id}" type="number" placeholder="不限" value="${lim}" style="margin-top:8px">
+        </div>`;
+      }).join('')}
+      <button class="btn block" type="button" id="saveTagBudget" style="margin-top:8px">保存标签预算</button>
+    </div>`;
+  }
+  if(panel==='tags'){
+    return `<div class="section-title"><h2>消费标签</h2>${back}</div>
+    <div class="card">
+      ${S.tags.map(t=>`<div class="item row">
+        <div><strong><span class="dot" style="background:${t.color}"></span>${esc(t.name)}</strong>
+          <div class="muted">${t.over?'可超额':'限额'}${t.quiz?' · 建议确认':''}${t.cool?' · 冷静'+t.cool+'天':''}</div></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn sm line" type="button" data-edit-tag="${t.id}">编辑</button>
+          <button class="btn sm danger" type="button" data-del-tag="${t.id}">删除</button>
+        </div>
+      </div>`).join('')}
+      <button class="btn block line" type="button" id="addTag" style="margin-top:8px">新增标签</button>
+    </div>`;
+  }
+  if(panel==='goals'){
+    return `<div class="section-title"><h2>专项储蓄</h2>${back}</div>
+    <div class="card">
+      ${S.goals.map(g=>`<div class="item">
+        <div class="row"><strong>${esc(g.name)}</strong><span>${money(g.saved)} / ${money(g.target)}</span></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn sm line" type="button" data-g-add="${g.id}">存入</button>
+          <button class="btn sm danger" type="button" data-g-del="${g.id}">删除</button>
+        </div>
+      </div>`).join('') || `<div class="empty">还没有储蓄目标</div>`}
+      <button class="btn block line" type="button" id="addGoal" style="margin-top:8px">新建目标</button>
+    </div>`;
+  }
+  if(panel==='model'){
+    return `<div class="section-title"><h2>模型 API</h2>${back}</div>
+    <div class="card">
+      <div class="switch"><span>启用模型功能</span><input id="m_on" type="checkbox" ${S.settings.modelOn?'checked':''}></div>
+      <label class="field"><span>Base URL</span><input id="m_url" value="${esc(S.api.baseURL)}"></label>
+      <label class="field"><span>API Key</span><input id="m_key" type="password" value="${esc(S.api.apiKey)}"></label>
+      <label class="field"><span>当前启用模型</span>
+        <select id="m_model">${(S.api.models.length?S.api.models:[S.api.model]).map(x=>`<option ${x===S.api.model?'selected':''}>${esc(x)}</option>`).join('')}</select>
+      </label>
+      <label class="field"><span>超时时间（毫秒）</span><input id="m_timeout" type="number" value="${S.api.timeout}"></label>
+      <div class="stack">
+        <button class="btn line" type="button" id="pullModels">拉取模型</button>
+        <button class="btn line" type="button" id="testModel">测试连接</button>
+        <button class="btn" type="button" id="saveModel">保存配置</button>
+        <button class="btn danger" type="button" id="clearModel">清除API配置</button>
+      </div>
+      <p class="muted" id="m_msg" style="margin-top:10px"></p>
+      <div class="section-title" style="margin-top:14px"><h2 style="font-size:13px">系统提示词</h2><button class="btn sm line" type="button" id="restorePrompt">恢复默认</button></div>
+      <textarea id="m_prompt" style="min-height:140px">${esc(S.api.prompt||PROMPT)}</textarea>
+      <button class="btn block line" type="button" id="savePrompt" style="margin-top:8px">保存提示词</button>
+    </div>`;
+  }
+  if(panel==='prefs'){
+    return `<div class="section-title"><h2>通用设置</h2>${back}</div>
+    <div class="card">
+      <label class="field"><span>安全余额（底线，可直接修改，不留记录）</span><input id="p_safe" type="number" value="${S.settings.safe}"></label>
+      <label class="field"><span>超过多少金额建议确认</span><input id="p_quiz" type="number" value="${S.settings.quizAmount}"></label>
+      <button class="btn block" type="button" id="savePrefs">保存</button>
+    </div>`;
+  }
+  // data
+  return `<div class="section-title"><h2>备份与清理</h2>${back}</div>
+  <div class="card stack">
+    <button class="btn" type="button" id="exportJson">导出完整备份 JSON</button>
+    <button class="btn line" type="button" id="exportCsv">导出流水 CSV</button>
+    <label class="field"><span>导入 JSON</span><input type="file" id="importJson" accept="application/json,.json"></label>
+  </div>
+  <div class="card stack">
+    <button class="btn danger" type="button" id="clearTxOnly">清空流水（不影响账户余额）</button>
+    <button class="btn danger" type="button" id="resetAll">恢复初始示例（覆盖全部数据）</button>
+  </div>`;
+}
+
+/* ---------- render & bind ---------- */
+function render(){
+  setChrome();
+  const view = { home: viewHome, add: viewAdd, cal: viewCal, ai: viewAI, settings: viewSettings }[page];
+  $('view').innerHTML = view();
+  bind();
+}
+
+function bind(){
+  document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { page=b.dataset.go; render(); });
+
+  if(page==='home'){
+    const gb=$('goBudget'); if(gb) gb.onclick=()=>{ page='settings'; S.ui.setPanel='budget'; save(); render(); };
+    document.querySelectorAll('[data-confirm]').forEach(b => b.onclick=()=>{ confirmPlan(b.dataset.confirm); render(); });
+    document.querySelectorAll('[data-drop]').forEach(b => b.onclick=()=>{ dropPlan(b.dataset.drop); render(); });
+    document.querySelectorAll('[data-delay]').forEach(b => b.onclick=()=>{ delayPlan(b.dataset.delay); render(); });
+    document.querySelectorAll('[data-del-plan]').forEach(b => b.onclick=()=>{ if(confirm('确定删除这个计划吗？')){ deletePlan(b.dataset.delPlan); render(); } });
+    document.querySelectorAll('[data-cooldown]').forEach(b => b.onclick=()=>{
+      const p=S.plans.find(x=>x.id===b.dataset.cooldown);
+      const days = Number(prompt('冷静期天数', (tag(p?.tagId)?.cool)||7) || 7);
+      cooldownPlan(b.dataset.cooldown, days); render();
+    });
+    document.querySelectorAll('[data-review]').forEach(b => b.onclick=async ()=>{
+      page='ai'; render();
+      await reviewPlan(b.dataset.review);
+    });
+  }
+
+  if(page==='add'){
+    const updateWarn=()=>{
+      const amount=Number($('a_amount').value||0);
+      $('a_warn').innerHTML = planWarnHTML(amount, $('a_tag').value, $('a_inbudget').checked);
+    };
+    $('a_amount').addEventListener('input', updateWarn);
+    $('a_tag').addEventListener('change', updateWarn);
+    $('a_inbudget').addEventListener('change', updateWarn);
+
+    $('btnPlan').onclick = () => {
+      const amount = Number($('a_amount').value||0);
+      const item = $('a_item').value.trim();
+      if(!(amount>0) || !item) return toast('填写金额和内容');
+      const p = createPlan({
+        amount, item,
+        tagId: $('a_tag').value,
+        accountId: $('a_acc').value,
+        date: $('a_date').value || today(),
+        note: $('a_note').value.trim(),
+        inBudget: $('a_inbudget').checked
+      });
+      toast(p.quiz ? '已生成，建议先确认再买' : '计划已生成');
+      page='home'; render();
+    };
+    $('btnIncome').onclick = () => {
+      openModal(`<div class="row"><h3>记收入</h3><button class="btn sm line" type="button" id="mc">关闭</button></div>
+        <label class="field"><span>金额</span><input id="i_amt" type="number"></label>
+        <label class="field"><span>账户</span><select id="i_acc">${S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select></label>
+        <label class="field"><span>说明</span><input id="i_item" value="收入"></label>
+        <button class="btn block" type="button" id="i_ok">保存</button>`);
+      $('mc').onclick=closeModal;
+      $('i_ok').onclick=()=>{
+        const amount=Number($('i_amt').value||0); if(!(amount>0)) return toast('金额无效');
+        const id=$('i_acc').value; const a=acc(id); a.balance+=amount;
+        S.txs.unshift({id:uid(), type:'income', amount, accountId:id, item:$('i_item').value||'收入', date:today(), refunded:false});
+        save(); closeModal(); toast('已记录'); render();
       };
-
-      const names = new Map();
-      s.tags.forEach((tag, i) => {
-        const name = normalizeName(tag.name || tag.label || "其他");
-        if (!names.has(name)) names.set(name, { id: tag.id || id(), name, color: tag.color || DEFAULT_COLORS[i % DEFAULT_COLORS.length], allowOverspend: !!tag.allowOverspend });
-      });
-
-      const ensureTag = name => {
-        const clean = normalizeName(name || "其他");
-        if (!names.has(clean)) names.set(clean, { id: id(), name: clean, color: DEFAULT_COLORS[names.size % DEFAULT_COLORS.length], allowOverspend: false });
-        return names.get(clean);
+    };
+    $('btnTransfer').onclick = () => {
+      const opts = S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('');
+      openModal(`<div class="row"><h3>账户互转</h3><button class="btn sm line" type="button" id="mc">关闭</button></div>
+        <p class="muted">转账不计收入或支出，不影响总资产，只改变各账户余额。</p>
+        <label class="field"><span>从</span><select id="t_from">${opts}</select></label>
+        <label class="field"><span>到</span><select id="t_to">${opts}</select></label>
+        <label class="field"><span>金额</span><input id="t_amt" type="number"></label>
+        <button class="btn block" type="button" id="t_ok">确认转账</button>`);
+      $('mc').onclick=closeModal;
+      $('t_ok').onclick=()=>{
+        const from=$('t_from').value, to=$('t_to').value, amount=Number($('t_amt').value||0);
+        if(from===to || !(amount>0)) return toast('参数无效');
+        acc(from).balance-=amount; acc(to).balance+=amount;
+        S.txs.unshift({id:uid(), type:'transfer', amount, accountId:from, toAccountId:to, item:'转账到'+acc(to).name, date:today(), refunded:false});
+        save(); closeModal(); toast('已转账'); render();
       };
-
-      const validTagIds = new Set([...names.values()].map(t => t.id));
-      s.transactions = s.transactions.map(tx => {
-        if (tx.tagId && validTagIds.has(tx.tagId)) {
-          return { ...tx, date: tx.date || new Date().toISOString(), type: tx.type || "expense" };
-        }
-        const legacyBudget = s.budgets.find(b => b.id === tx.budgetId);
-        const tag = ensureTag(tx.tag || legacyBudget?.name || firstWord(tx.note) || (tx.type === "income" ? "收入" : "其他"));
-        validTagIds.add(tag.id);
-        return { ...tx, tagId: tag.id, date: tx.date || new Date().toISOString(), type: tx.type || "expense" };
-      });
-
-      s.budgets = s.budgets.map(b => {
-        const tag = ensureTag(b.tag || b.tagName || b.name || "其他");
-        return { ...b, tagId: b.tagId || tag.id, limit: Number(b.limit || 0), note: b.note || b.plan || "", periodKey: b.periodKey || currentPeriodKey() };
-      });
-
-      ["固定支出", "日常生活", "临时必要", "正常吃饭", "外卖", "零食饮料", "消耗品", "娱乐", "其他"].forEach(ensureTag);
-      s.tags = [...names.values()];
-
-      s.accounts = s.accounts.map((a, i) => ({
-        id: a.id || id(),
-        kind: a.kind || guessKind(a.name),
-        name: a.name || "账户",
-        balance: Number(a.balance || 0),
-        note: a.note || ""
-      }));
-      if (!s.accounts.length) s.accounts = structuredClone(defaultState.accounts);
-
-      s.plans = s.plans.map(p => ({
-        id: p.id || id(),
-        amount: Number(p.amount || 0),
-        item: p.item || "",
-        tagId: validTagIds.has(p.tagId) ? p.tagId : ensureTag("其他").id,
-        accountId: p.accountId || (s.accounts[0] && s.accounts[0].id) || "",
-        inBudget: p.inBudget !== false,
-        status: p.status || "pending",
-        createdDate: p.createdDate || new Date().toISOString(),
-        confirmedDate: p.confirmedDate || null,
-        cooldownDays: p.cooldownDays || 7,
-        cooldownUntil: p.cooldownUntil || null
-      }));
-
-      s.longTermTags = s.longTermTags.map(t => ({ id: t.id || id(), name: t.name || "", note: t.note || "", createdDate: t.createdDate || new Date().toISOString() }));
-      s.savingsGoals = s.savingsGoals.map(g => ({ id: g.id || id(), name: g.name || "", amount: Number(g.amount || 0), note: g.note || "" }));
-
-      return s;
-    }
-
-    function guessKind(name) {
-      const n = String(name || "");
-      if (n.includes("现金")) return "cash";
-      if (n.includes("微信")) return "wechat";
-      if (n.includes("支付宝")) return "alipay";
-      if (n.includes("卡") || n.includes("Visa") || n.includes("银行")) return "bank";
-      return "custom";
-    }
-
-    function save() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    }
-
-    function normalizeName(name) {
-      return String(name || "").trim().replace(/\s+/g, " ") || "其他";
-    }
-
-    function firstWord(text) {
-      return String(text || "").trim().split(/[，,。\.\s/｜|；;：:、-]+/).filter(Boolean)[0] || "";
-    }
-
-    function money(value) {
-      return new Intl.NumberFormat("zh-CN", { style: "currency", currency: "CNY", minimumFractionDigits: 2 }).format(Number(value || 0));
-    }
-
-    function monthKey(date = new Date()) {
-      const d = new Date(date);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    }
-
-    function dateKey(date) {
-      const d = new Date(date);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    }
-
-    function daysInMonth(key) {
-      const [y, m] = key.split("-").map(Number);
-      return new Date(y, m, 0).getDate();
-    }
-
-    // ---- 半月周期 ----
-    function currentPeriodKey(date = new Date(), period = null) {
-      const d = new Date(date);
-      const mk = monthKey(d);
-      const p = period || (d.getDate() <= 15 ? "A" : "B");
-      return `${mk}-${p}`;
-    }
-
-    function periodRange(periodKey) {
-      const [y, m, p] = periodKey.split("-");
-      const year = Number(y), month = Number(m);
-      if (p === "A") {
-        return { start: new Date(year, month - 1, 1), end: new Date(year, month - 1, 15, 23, 59, 59) };
-      }
-      const lastDay = new Date(year, month, 0).getDate();
-      return { start: new Date(year, month - 1, 16), end: new Date(year, month - 1, lastDay, 23, 59, 59) };
-    }
-
-    function dateInPeriod(date, periodKey) {
-      const { start, end } = periodRange(periodKey);
-      const d = new Date(date);
-      return d >= start && d <= end;
-    }
-
-    function periodLabel(periodKey) {
-      const { start, end } = periodRange(periodKey);
-      return `${start.getMonth() + 1}月${start.getDate()}日 – ${end.getMonth() + 1}月${end.getDate()}日`;
-    }
-
-    function tagById(tagId) {
-      return state.tags.find(t => t.id === tagId) || state.tags.find(t => t.name === "其他") || { id: "", name: "其他", color: "#475569" };
-    }
-
-    function accountById(accountId) {
-      return state.accounts.find(a => a.id === accountId);
-    }
-
-    function txMonth(key) {
-      return state.transactions.filter(tx => tx.date && monthKey(tx.date) === key);
-    }
-
-    function txToday() {
-      const key = dateKey(new Date());
-      return state.transactions.filter(tx => tx.date && dateKey(tx.date) === key);
-    }
-
-    function sumTx(list, type) {
-      return list.filter(tx => tx.type === type).reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
-    }
-
-    function escapeHtml(text) {
-      return String(text ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-
-    function toast(message) {
-      const el = $("#toast");
-      el.innerHTML = message;
-      el.classList.add("show");
-      clearTimeout(window.__toastTimer);
-      window.__toastTimer = setTimeout(() => el.classList.remove("show"), 4200);
-    }
-
-    function setPage(page) {
-      $$(".nav-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.page === page));
-      $$(".page").forEach(p => p.classList.remove("active"));
-      $(`#${page}Page`).classList.add("active");
-      const title = $(`.nav-btn[data-page="${page}"]`).textContent.replace(/[🏠🧭📅📈🎯🏷️💳⚙️]/g, "").trim();
-      $("#mobilePageTitle").textContent = title;
-      closeSidebar();
-      if (page === "chart") setTimeout(renderChart, 60);
-    }
-
-    function openSidebar() {
-      $("#sidebar").classList.add("show");
-      $("#overlay").classList.add("show");
-    }
-
-    function closeSidebar() {
-      $("#sidebar").classList.remove("show");
-      $("#overlay").classList.remove("show");
-    }
-
-    // ---- 预算计算 ----
-    function budgetsForPeriod(periodKey) {
-      return state.budgets.filter(b => b.periodKey === periodKey);
-    }
-
-    function spentForTagInPeriod(tagId, periodKey) {
-      return state.transactions
-        .filter(tx => tx.type === "expense" && tx.tagId === tagId && dateInPeriod(tx.date, periodKey))
-        .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
-    }
-
-    function periodTotals(periodKey) {
-      const budgets = budgetsForPeriod(periodKey);
-      const totalBudget = budgets.reduce((sum, b) => sum + Number(b.limit || 0), 0);
-      const totalSpent = budgets.reduce((sum, b) => sum + spentForTagInPeriod(b.tagId, periodKey), 0);
-      return { totalBudget, totalSpent, left: totalBudget - totalSpent };
-    }
-
-    function render() {
-      save();
-      fillSelects();
-      renderHome();
-      renderDecide();
-      renderCalendar();
-      renderChart();
-      renderBudgets();
-      renderTags();
-      renderAccounts();
-      renderSavings();
-      $("#safetyBalanceInput").value = state.safetyBalance;
-      $("#safetyBalanceCard").textContent = money(state.safetyBalance);
-      $("#safetyBalanceView").textContent = money(state.safetyBalance);
-    }
-
-    function totalAssets() {
-      return state.accounts.reduce((sum, a) => sum + Number(a.balance || 0), 0);
-    }
-
-    function totalSavingsGoals() {
-      return state.savingsGoals.reduce((sum, g) => sum + Number(g.amount || 0), 0);
-    }
-
-    function renderHome() {
-      const nowMonth = monthKey();
-      const month = txMonth(nowMonth);
-      const totalBalance = totalAssets();
-      const income = sumTx(month, "income");
-      const expense = sumTx(month, "expense");
-      const todayExpense = sumTx(txToday(), "expense");
-
-      const nowPeriodKey = currentPeriodKey();
-      const { left } = periodTotals(nowPeriodKey);
-
-      $("#totalBalance").textContent = money(totalBalance);
-      $("#monthIncome").textContent = money(income);
-      $("#monthExpense").textContent = money(expense);
-      $("#todayExpense").textContent = money(todayExpense);
-      $("#halfMonthLeft").textContent = money(left);
-      $("#halfMonthLeft").className = `money ${left < 0 ? "red" : "blue"}`;
-      $("#halfMonthRange").textContent = periodLabel(nowPeriodKey);
-
-      $("#savingsView").textContent = money(totalSavingsGoals());
-      const arrangeable = totalBalance - state.safetyBalance - totalSavingsGoals();
-      $("#arrangeableView").textContent = money(arrangeable);
-
-      const pending = state.plans.filter(p => p.status === "pending");
-      const cooldown = state.plans.filter(p => p.status === "cooldown");
-      $("#pendingPlanCount").textContent = `${pending.length} 个`;
-      $("#cooldownCount").textContent = `${cooldown.length} 个`;
-
-      const recent = [...state.transactions].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
-      $("#recentRecords").innerHTML = recent.length ? recent.map(recordHTML).join("") : `<div class="empty">还没有正式记录。先在“消费决策”里新建计划，确认购买后会出现在这里。</div>`;
-    }
-
-    function recordHTML(tx) {
-      if (tx.type === "transfer") {
-        const from = accountById(tx.accountId);
-        const to = accountById(tx.toAccountId);
-        return `
-          <div class="record">
-            <div>
-              <strong>内部转账</strong>
-              <div class="muted">${new Date(tx.date).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} · ${escapeHtml(from?.name || "?")} → ${escapeHtml(to?.name || "?")}</div>
-              <span class="tag-chip"><span class="tag-dot" style="background:#94a3b8"></span>不计收支</span>
-            </div>
-            <div class="record-right">
-              <div class="record-money blue">${money(tx.amount)}</div>
-              <div class="record-actions">
-                <button type="button" class="danger icon-btn" onclick="deleteTransaction('${tx.id}')" title="删除">✕</button>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-      const tag = tagById(tx.tagId);
-      const account = accountById(tx.accountId);
-      const sign = tx.type === "income" ? "+" : "-";
-      const cls = tx.type === "income" ? "green" : "red";
-      return `
-        <div class="record">
-          <div>
-            <strong>${escapeHtml(tx.note || tag.name)}</strong>
-            <div class="muted">${new Date(tx.date).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} · ${escapeHtml(account?.name || "未知账户")}</div>
-            <span class="tag-chip"><span class="tag-dot" style="background:${tag.color}"></span>${escapeHtml(tag.name)}</span>
-          </div>
-          <div class="record-right">
-            <div class="record-money ${cls}">${sign}${money(tx.amount)}</div>
-            <div class="record-actions">
-              <button type="button" class="danger icon-btn" onclick="deleteTransaction('${tx.id}')" title="删除">✕</button>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    // ---- 消费决策 / 计划流程 ----
-    function renderDecide() {
-      const pending = state.plans.filter(p => p.status === "pending").sort((a, b) => new Date(b.createdDate) - new Date(a.createdDate));
-      const cooldown = state.plans.filter(p => p.status === "cooldown").sort((a, b) => new Date(a.cooldownUntil) - new Date(b.cooldownUntil));
-      $("#pendingCountPill").textContent = pending.length;
-      $("#planGrid").innerHTML = pending.length ? pending.map(planCardHTML).join("") : `<div class="empty">没有待处理的消费计划。点击右上角“＋ 新消费计划”开始。</div>`;
-      $("#cooldownGrid").innerHTML = cooldown.length ? cooldown.map(planCardHTML).join("") : `<div class="empty">冷静清单是空的。</div>`;
-    }
-
-    function planCardHTML(p) {
-      const tag = tagById(p.tagId);
-      const account = accountById(p.accountId);
-      const daysLeft = p.status === "cooldown" && p.cooldownUntil ? Math.max(0, Math.ceil((new Date(p.cooldownUntil) - new Date()) / 86400000)) : null;
-      return `
-        <div class="card plan-card">
-          <div class="card-title">
-            <strong>${escapeHtml(p.item || "未命名")}</strong>
-            <span class="tag-chip" style="margin-top:0"><span class="tag-dot" style="background:${tag.color}"></span>${escapeHtml(tag.name)}</span>
-          </div>
-          <div class="money" style="font-size:22px">${money(p.amount)}</div>
-          <div class="muted">${escapeHtml(account?.name || "未知账户")} · ${p.inBudget ? "已纳入预算" : "未纳入预算"}</div>
-          ${daysLeft !== null ? `<div class="muted">冷静期剩余 ${daysLeft} 天</div>` : ""}
-          <div class="status-row">
-            <button class="secondary small" onclick="openPlanDetail('${p.id}')">查看 / 处理</button>
-          </div>
-        </div>
-      `;
-    }
-
-    function evaluatePlanWarning(amount, tagId, inBudget) {
-      const messages = [];
-      let level = "info";
-      const periodKey = currentPeriodKey();
-      const totalBalance = totalAssets();
-
-      if (totalBalance - amount < state.safetyBalance) {
-        messages.push(`⚠️ 这笔花费后资产可能低于安全余额 ${money(state.safetyBalance)}。`);
-        level = "danger";
-      }
-
-      if (inBudget) {
-        const budget = state.budgets.find(b => b.tagId === tagId && b.periodKey === periodKey);
-        if (budget) {
-          const spent = spentForTagInPeriod(tagId, periodKey);
-          const left = Number(budget.limit || 0) - spent - amount;
-          if (left < 0) {
-            messages.push(`该标签本周期预算已超出 ${money(Math.abs(left))}。`);
-            level = level === "danger" ? "danger" : "warn";
-          } else if (left <= 30) {
-            messages.push(`购买后该标签本周期只剩 ${money(left)}，接近预算上限。`);
-            level = level === "danger" ? "danger" : "warn";
-          }
-        } else {
-          const { left } = periodTotals(periodKey);
-          const afterLeft = left - amount;
-          if (afterLeft < 0) {
-            messages.push(`该标签没有单独预算，本半月总预算已超出 ${money(Math.abs(afterLeft))}。`);
-            level = level === "danger" ? "danger" : "warn";
-          } else if (afterLeft <= 30) {
-            messages.push(`该标签没有单独预算，购买后本半月总预算只剩 ${money(afterLeft)}。`);
-            level = level === "danger" ? "danger" : "warn";
-          }
-        }
-      } else {
-        messages.push("这笔未纳入预算，购买后会挤占其他计划或需要额外调整预算。");
-        level = level === "danger" ? "danger" : "warn";
-      }
-
-      if (amount > 25) {
-        messages.push("金额超过 ¥25，建议正式确认前再想一下是否有必要。");
-      }
-
-      return { level, text: messages.join(" ") };
-    }
-
-    function openPlan() {
-      $("#planDialogTitle").textContent = "新消费计划";
-      $("#planAmount").value = "";
-      $("#planItem").value = "";
-      $("#planTag").value = state.tags[0]?.id || "";
-      $("#planAccount").value = state.accounts[0]?.id || "";
-      $("#planInBudget").checked = true;
-      updatePlanWarn();
-      $("#planDialog").showModal();
-      setTimeout(() => $("#planAmount").focus(), 80);
-    }
-
-    function updatePlanWarn() {
-      const amount = Number($("#planAmount").value || 0);
-      const tagId = $("#planTag").value;
-      const inBudget = $("#planInBudget").checked;
-      const box = $("#planWarnBox");
-      if (!amount) { box.classList.remove("show"); return; }
-      const { level, text } = evaluatePlanWarning(amount, tagId, inBudget);
-      box.className = `warn-box show ${level}`;
-      box.textContent = text || "在预算范围内，可以正常安排。";
-      if (!text) { box.className = "warn-box show info"; }
-    }
-
-    function openPlanDetail(planId) {
-      currentPlanDetailId = planId;
-      const p = state.plans.find(x => x.id === planId);
-      if (!p) return;
-      const tag = tagById(p.tagId);
-      const account = accountById(p.accountId);
-      const warn = evaluatePlanWarning(p.amount, p.tagId, p.inBudget);
-      $("#planDetailBody").innerHTML = `
-        <div class="card-title"><strong>${escapeHtml(p.item)}</strong><span class="tag-chip" style="margin-top:0"><span class="tag-dot" style="background:${tag.color}"></span>${escapeHtml(tag.name)}</span></div>
-        <div class="money" style="font-size:26px">${money(p.amount)}</div>
-        <div class="muted">账户：${escapeHtml(account?.name || "未知")} · ${p.inBudget ? "已纳入预算" : "未纳入预算"}</div>
-        <div class="muted">创建于 ${new Date(p.createdDate).toLocaleString("zh-CN")}</div>
-        <div class="warn-box show ${warn.level}" style="margin-top:6px">${warn.text || "在预算范围内，可以正常安排。"}</div>
-      `;
-      const actions = [];
-      if (p.status === "pending" || p.status === "cooldown") {
-        actions.push(`<button onclick="confirmPlanPurchase('${p.id}')">✅ 确认已购买</button>`);
-        actions.push(`<button class="secondary" onclick="markPlanStatus('${p.id}','delayed')">延后考虑</button>`);
-        if (p.status !== "cooldown") actions.push(`<button class="secondary" onclick="markPlanCooldown('${p.id}')">进入冷静期</button>`);
-        actions.push(`<button class="danger" onclick="markPlanStatus('${p.id}','abandoned')">放弃购买</button>`);
-      }
-      actions.push(`<button class="danger" onclick="deletePlan('${p.id}')">删除计划</button>`);
-      $("#planDetailActions").innerHTML = actions.join("");
-      $("#planDetailDialog").showModal();
-    }
-
-    function confirmPlanPurchase(planId) {
-      const p = state.plans.find(x => x.id === planId);
-      if (!p) return;
-      const account = accountById(p.accountId);
-      if (!account) return alert("账户不存在，请先检查账户设置。");
-      account.balance -= Number(p.amount || 0);
-      state.transactions.unshift({
-        id: id(), type: "expense", amount: Number(p.amount || 0),
-        accountId: account.id, tagId: p.tagId, note: p.item, date: new Date().toISOString(), planId: p.id
-      });
-      p.status = "confirmed";
-      p.confirmedDate = new Date().toISOString();
-      $("#planDetailDialog").close();
-      toast("✅ 已确认购买，记录已计入流水。");
-      render();
-    }
-
-    function markPlanStatus(planId, status) {
-      const p = state.plans.find(x => x.id === planId);
-      if (!p) return;
-      p.status = status;
-      $("#planDetailDialog").close();
-      render();
-    }
-
-    function markPlanCooldown(planId) {
-      const p = state.plans.find(x => x.id === planId);
-      if (!p) return;
-      const days = Number(prompt("冷静期天数（默认7天）", p.cooldownDays || 7) || 7);
-      p.status = "cooldown";
-      p.cooldownDays = days;
-      p.cooldownUntil = new Date(Date.now() + days * 86400000).toISOString();
-      $("#planDetailDialog").close();
-      render();
-    }
-
-    function deletePlan(planId) {
-      if (!confirm("确定删除这个计划吗？")) return;
-      state.plans = state.plans.filter(x => x.id !== planId);
-      $("#planDetailDialog").close();
-      render();
-    }
-
-    // ---- 日历 ----
-    function renderCalendar() {
-      const key = $("#calendarMonth").value || monthKey();
-      const list = txMonth(key);
-      $("#calendarMonthText").textContent = key;
-      $("#calendarIncome").textContent = money(sumTx(list, "income"));
-      $("#calendarExpense").textContent = money(sumTx(list, "expense"));
-
-      $("#weekdayGrid").innerHTML = ["一", "二", "三", "四", "五", "六", "日"].map(w => `<div class="weekday">${w}</div>`).join("");
-
-      const [year, month] = key.split("-").map(Number);
-      const first = new Date(year, month - 1, 1);
-      const offset = (first.getDay() + 6) % 7;
-      const days = daysInMonth(key);
-      const byDay = new Map();
-
-      list.forEach(tx => {
-        const day = new Date(tx.date).getDate();
-        const info = byDay.get(day) || { income: 0, expense: 0, tags: new Set(), txs: [] };
-        if (tx.type !== "transfer") info[tx.type] += Number(tx.amount || 0);
-        if (tx.tagId) info.tags.add(tx.tagId);
-        info.txs.push(tx);
-        byDay.set(day, info);
-      });
-
-      const cells = [];
-      for (let i = 0; i < offset; i++) cells.push(`<div class="day dim"></div>`);
-      const today = dateKey(new Date());
-      for (let day = 1; day <= days; day++) {
-        const info = byDay.get(day);
-        const current = `${key}-${String(day).padStart(2, "0")}`;
-        const dots = info ? [...info.tags].slice(0, 6).map(tagId => {
-          const tag = tagById(tagId);
-          return `<span class="tag-dot" title="${escapeHtml(tag.name)}" style="background:${tag.color};width:7px;height:7px"></span>`;
-        }).join("") : "";
-        cells.push(`
-          <div class="day ${current === today ? "today" : ""}">
-            <div class="day-num">${day}</div>
-            ${info?.income ? `<div class="day-line green">收 ${shortMoney(info.income)}</div>` : ""}
-            ${info?.expense ? `<div class="day-line red">支 ${shortMoney(info.expense)}</div>` : ""}
-            <div class="day-tags">${dots}</div>
-          </div>
-        `);
-      }
-      $("#calendarGrid").innerHTML = cells.join("");
-
-      const grouped = [...byDay.entries()].sort((a, b) => b[0] - a[0]);
-      $("#calendarDetails").innerHTML = grouped.length ? grouped.map(([day, info]) => dayDetailsHTML(key, day, info.txs)).join("") : `<div class="empty">这个月还没有流水。</div>`;
-    }
-
-    function dayDetailsHTML(key, day, txs) {
-      const date = new Date(`${key}-${String(day).padStart(2, "0")}T00:00:00`);
-      const income = txs.filter(tx => tx.type === "income");
-      const expense = txs.filter(tx => tx.type === "expense");
-      const transfers = txs.filter(tx => tx.type === "transfer");
-      const incomeTotal = sumTx(txs, "income");
-      const expenseTotal = sumTx(txs, "expense");
-      return `
-        <details class="day-group" ${day === new Date().getDate() && key === monthKey() ? "open" : ""}>
-          <summary>
-            <span>${date.toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" })}</span>
-            <span class="muted">收 ${money(incomeTotal)} · 支 ${money(expenseTotal)}</span>
-          </summary>
-          <div class="two-columns">
-            <div class="column-box">
-              <h4 class="green">收入</h4>
-              <div class="simple-list">${income.length ? income.map(simpleTxHTML).join("") : `<div class="muted">无收入</div>`}</div>
-            </div>
-            <div class="column-box">
-              <h4 class="red">支出</h4>
-              <div class="simple-list">${expense.length ? expense.map(simpleTxHTML).join("") : `<div class="muted">无支出</div>`}</div>
-            </div>
-          </div>
-          ${transfers.length ? `<div class="two-columns" style="grid-template-columns:1fr"><div class="column-box"><h4 style="color:var(--muted)">内部转账（不计收支）</h4><div class="simple-list">${transfers.map(simpleTxHTML).join("")}</div></div></div>` : ""}
-        </details>
-      `;
-    }
-
-    function simpleTxHTML(tx) {
-      if (tx.type === "transfer") {
-        const from = accountById(tx.accountId);
-        const to = accountById(tx.toAccountId);
-        return `
-          <div class="simple-item">
-            <div class="simple-item-row">
-              <div>
-                <strong>${escapeHtml(from?.name || "?")} → ${escapeHtml(to?.name || "?")}</strong>
-                <div class="muted">${new Date(tx.date).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} · ${escapeHtml(tx.note || "内部转账")}</div>
-              </div>
-              <div class="record-right">
-                <div class="record-money blue" style="font-size:15px">${money(tx.amount)}</div>
-                <div class="record-actions"><button type="button" class="danger icon-btn" onclick="deleteTransaction('${tx.id}')" title="删除">✕</button></div>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-      const tag = tagById(tx.tagId);
-      return `
-        <div class="simple-item">
-          <div class="simple-item-row">
-            <div>
-              <strong>${escapeHtml(tx.note || tag.name)}</strong>
-              <div class="muted">${new Date(tx.date).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} · ${escapeHtml(tag.name)}</div>
-            </div>
-            <div class="record-right">
-              <div class="record-money ${tx.type === "income" ? "green" : "red"}" style="font-size:15px">${money(tx.amount)}</div>
-              <div class="record-actions">
-                <button type="button" class="danger icon-btn" onclick="deleteTransaction('${tx.id}')" title="删除">✕</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    function shortMoney(v) {
-      const n = Number(v || 0);
-      if (Math.abs(n) >= 10000) return `${(n / 10000).toFixed(1)}万`;
-      if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(1)}k`;
-      return `${Math.round(n)}`;
-    }
-
-    function renderChart() {
-      const canvas = $("#lineChart");
-      if (!canvas) return;
-      const key = $("#chartMonth").value || monthKey();
-      const type = $("#chartType").value;
-      const mode = $("#chartMode").value;
-      const wrap = canvas.parentElement;
-      if (!wrap || wrap.clientWidth === 0) return;
-      const dpr = window.devicePixelRatio || 1;
-      const width = Math.max(320, wrap.clientWidth - 20);
-      const height = 340;
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
-      canvas.style.width = width + "px";
-      canvas.style.height = height + "px";
-      const ctx = canvas.getContext("2d");
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, width, height);
-
-      const days = daysInMonth(key);
-      const txs = txMonth(key).filter(tx => tx.type === type);
-      const series = state.tags.map(tag => {
-        const values = Array(days).fill(0);
-        txs.filter(tx => tx.tagId === tag.id).forEach(tx => {
-          values[new Date(tx.date).getDate() - 1] += Number(tx.amount || 0);
-        });
-        if (mode === "cumulative") {
-          for (let i = 1; i < values.length; i++) values[i] += values[i - 1];
-        }
-        return { tag, values, total: values.reduce((a, b) => a + b, 0) };
-      }).filter(s => s.values.some(v => v > 0));
-
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, 0, width, height);
-
-      if (!series.length) {
-        ctx.fillStyle = "#7b8496";
-        ctx.font = "800 15px -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText("这个月份还没有可以画图的记录", width / 2, height / 2);
-        $("#chartLegend").innerHTML = "";
-        return;
-      }
-
-      const values = series.flatMap(s => s.values);
-      const max = Math.max(...values) * 1.12 || 1;
-      const pad = { left: 58, right: 18, top: 24, bottom: 42 };
-      const plotW = width - pad.left - pad.right;
-      const plotH = height - pad.top - pad.bottom;
-      const x = i => pad.left + (i / (days - 1 || 1)) * plotW;
-      const y = v => pad.top + (1 - v / max) * plotH;
-
-      ctx.strokeStyle = "#e5e7eb";
-      ctx.lineWidth = 1;
-      ctx.fillStyle = "#7b8496";
-      ctx.font = "12px -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
-      ctx.textAlign = "right";
-      ctx.textBaseline = "middle";
-
-      for (let i = 0; i <= 4; i++) {
-        const value = (max / 4) * i;
-        const yy = y(value);
-        ctx.beginPath();
-        ctx.moveTo(pad.left, yy);
-        ctx.lineTo(width - pad.right, yy);
-        ctx.stroke();
-        ctx.fillText(shortMoney(value), pad.left - 8, yy);
-      }
-
-      ctx.textAlign = "center";
-      ctx.textBaseline = "top";
-      for (let day = 1; day <= days; day++) {
-        if (day === 1 || day === days || day % 5 === 0) ctx.fillText(`${day}日`, x(day - 1), height - pad.bottom + 16);
-      }
-
-      series.forEach(s => {
-        ctx.strokeStyle = s.tag.color;
-        ctx.lineWidth = 2.8;
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-        ctx.beginPath();
-        s.values.forEach((v, i) => {
-          if (i === 0) ctx.moveTo(x(i), y(v));
-          else ctx.lineTo(x(i), y(v));
-        });
-        ctx.stroke();
-
-        s.values.forEach((v, i) => {
-          if (!v) return;
-          ctx.fillStyle = s.tag.color;
-          ctx.beginPath();
-          ctx.arc(x(i), y(v), 3.5, 0, Math.PI * 2);
-          ctx.fill();
-        });
-      });
-
-      $("#chartLegend").innerHTML = series.map(s => `
-        <span class="tag-chip"><span class="tag-dot" style="background:${s.tag.color}"></span>${escapeHtml(s.tag.name)}</span>
-      `).join("");
-    }
-
-    // ---- 半月预算页 ----
-    function activePeriodKey() {
-      return currentPeriodKey(new Date(), currentPeriod);
-    }
-
-    function renderBudgets() {
-      const periodKey = activePeriodKey();
-      $("#budgetPeriodPill").textContent = periodLabel(periodKey);
-      const totals = periodTotals(periodKey);
-      $("#periodTotalBudget").textContent = money(totals.totalBudget);
-      $("#periodTotalSpent").textContent = money(totals.totalSpent);
-
-      const list = budgetsForPeriod(periodKey);
-      $("#budgetGrid").innerHTML = list.length ? list.map(b => {
-        const tag = tagById(b.tagId);
-        const spent = spentForTagInPeriod(b.tagId, periodKey);
-        const limit = Number(b.limit || 0);
-        const percent = limit ? Math.min(100, Math.round(spent / limit * 100)) : 0;
-        const left = limit - spent;
-        const barClass = percent >= 100 ? "danger" : percent >= 85 ? "warn" : "";
-        return `
-          <div class="card budget-card">
-            <div class="card-title">
-              <strong>${escapeHtml(b.name)}</strong>
-              <span class="tag-chip" style="margin-top:0"><span class="tag-dot" style="background:${tag.color}"></span>${escapeHtml(tag.name)}</span>
-            </div>
-            <div class="progress-wrap"><div class="progress ${barClass}" style="width:${percent}%"></div></div>
-            <div class="muted">已用 ${money(spent)} / 预算 ${money(limit)}</div>
-            <div class="money ${left < 0 ? "red" : "green"}">${left < 0 ? "超了 " : "剩余 "}${money(Math.abs(left))}</div>
-            <div class="muted">${escapeHtml(b.note || "没有说明")}</div>
-            <div class="toolbar" style="margin-top:12px">
-              <button class="secondary small" onclick="openBudget('${b.id}')">编辑</button>
-              <button class="danger small" onclick="deleteBudget('${b.id}')">删除</button>
-            </div>
-          </div>
-        `;
-      }).join("") : `<div class="empty">本周期还没有预算标签。新增预算时需要选择一个消费标签。</div>`;
-    }
-
-    function renderTags() {
-      const periodKey = activePeriodKey();
-      $("#tagGrid").innerHTML = state.tags.map(tag => `
-        <div class="card tag-card">
-          <div class="card-title">
-            <strong><span class="tag-dot" style="background:${tag.color}"></span> ${escapeHtml(tag.name)}</strong>
-            <span class="pill blue">${tag.allowOverspend ? "可超额" : "限额"}</span>
-          </div>
-          <p class="muted">本周期支出：${money(spentForTagInPeriod(tag.id, periodKey))}</p>
-          <div class="toolbar" style="margin-top:12px">
-            <button class="secondary small" onclick="openTag('${tag.id}')">编辑</button>
-            <button class="danger small" onclick="deleteTag('${tag.id}')">删除</button>
-          </div>
-        </div>
-      `).join("");
-
-      $("#longTagGrid").innerHTML = state.longTermTags.length ? state.longTermTags.map(t => `
-        <div class="card tag-card">
-          <div class="card-title"><strong>${escapeHtml(t.name)}</strong><span class="pill purple">长期想法</span></div>
-          <p class="muted">${escapeHtml(t.note || "没有备注")}</p>
-          <p class="muted">记于 ${new Date(t.createdDate).toLocaleDateString("zh-CN")}</p>
-          <div class="toolbar" style="margin-top:12px">
-            <button class="secondary small" onclick="openLongTag('${t.id}')">编辑</button>
-            <button class="danger small" onclick="deleteLongTag('${t.id}')">删除</button>
-          </div>
-        </div>
-      `).join("") : `<div class="empty">还没有长期想法。想到什么先记下来，不占用预算。</div>`;
-    }
-
-    function renderAccounts() {
-      $("#accountGrid").innerHTML = state.accounts.length ? state.accounts.map(a => `
-        <div class="card account-card">
-          <div class="card-title"><strong>${escapeHtml(a.name)}</strong><span class="kind-badge">${ACCOUNT_KIND_LABEL[a.kind] || "自定义"}</span></div>
-          <div class="money">${money(a.balance)}</div>
-          <div class="muted">${escapeHtml(a.note || "没有备注")}</div>
-          <div class="toolbar" style="margin-top:12px">
-            <button class="secondary small" onclick="openAccount('${a.id}')">编辑</button>
-            <button class="danger small" onclick="deleteAccount('${a.id}')">删除</button>
-          </div>
-        </div>
-      `).join("") : `<div class="empty">还没有账户。</div>`;
-    }
-
-    function renderSavings() {
-      $("#savingsList").innerHTML = state.savingsGoals.length ? state.savingsGoals.map(g => `
-        <div class="simple-item">
-          <div class="simple-item-row">
-            <div><strong>${escapeHtml(g.name)}</strong><div class="muted">${escapeHtml(g.note || "")}</div></div>
-            <div class="record-right">
-              <div class="money purple" style="font-size:16px">${money(g.amount)}</div>
-              <div class="record-actions"><button type="button" class="danger icon-btn" onclick="deleteSavings('${g.id}')">✕</button></div>
-            </div>
-          </div>
-        </div>
-      `).join("") : `<div class="muted">还没有储蓄目标。</div>`;
-    }
-
-    function fillSelects() {
-      const tagOptions = state.tags.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
-      $("#planTag").innerHTML = tagOptions;
-      $("#budgetTag").innerHTML = tagOptions;
-      const accountOptions = state.accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)} · ${money(a.balance)}</option>`).join("");
-      $("#planAccount").innerHTML = accountOptions;
-      $("#transferFrom").innerHTML = accountOptions;
-      $("#transferTo").innerHTML = accountOptions;
-    }
-
-    // ---- 事件绑定 ----
-    $$(".nav-btn").forEach(btn => btn.addEventListener("click", () => setPage(btn.dataset.page)));
-    $("#menuBtn").addEventListener("click", openSidebar);
-    $("#overlay").addEventListener("click", closeSidebar);
-    $("#mobileAddBtn").addEventListener("click", () => openPlan());
-    ["#addBtnHome", "#addBtnCalendar", "#addBtnChart", "#addPlanBtn"].forEach(s => $(s).addEventListener("click", () => openPlan()));
-    $("#addTagBtn").addEventListener("click", () => openTag());
-    $("#addLongTagBtn").addEventListener("click", () => openLongTag());
-    $("#addBudgetBtn").addEventListener("click", () => openBudget());
-    $("#addAccountBtn").addEventListener("click", () => openAccount());
-    $("#addTransferBtn").addEventListener("click", () => $("#transferDialog").showModal());
-    $("#addSavingsBtn").addEventListener("click", () => { $("#savingsForm").reset(); $("#savingsDialog").showModal(); });
-
-    $$("[data-close]").forEach(btn => btn.addEventListener("click", () => document.getElementById(btn.dataset.close).close()));
-
-    $("#planAmount").addEventListener("input", updatePlanWarn);
-    $("#planTag").addEventListener("change", updatePlanWarn);
-    $("#planInBudget").addEventListener("change", updatePlanWarn);
-
-    $("#planForm").addEventListener("submit", e => {
-      e.preventDefault();
-      const amount = Number($("#planAmount").value || 0);
-      if (!amount || amount <= 0) return alert("金额要大于 0。");
-      state.plans.unshift({
-        id: id(), amount, item: $("#planItem").value.trim() || "未命名",
-        tagId: $("#planTag").value, accountId: $("#planAccount").value,
-        inBudget: $("#planInBudget").checked, status: "pending",
-        createdDate: new Date().toISOString(), confirmedDate: null,
-        cooldownDays: 7, cooldownUntil: null
-      });
-      $("#planDialog").close();
-      toast("计划已保存，去“消费决策”里查看和确认。");
-      render();
-      setPage("decide");
-    });
-
-    $("#tagForm").addEventListener("submit", e => {
-      e.preventDefault();
-      const name = normalizeName($("#tagName").value);
-      const color = $("#tagColor").value;
-      const allowOverspend = $("#tagAllowOverspend").checked;
-      if (editingTagId) {
-        state.tags = state.tags.map(t => t.id === editingTagId ? { ...t, name, color, allowOverspend } : t);
-      } else {
-        state.tags.push({ id: id(), name, color, allowOverspend });
-      }
-      editingTagId = null;
-      $("#tagDialog").close();
-      render();
-    });
-
-    $("#longTagForm").addEventListener("submit", e => {
-      e.preventDefault();
-      const name = normalizeName($("#longTagName").value);
-      const note = $("#longTagNote").value.trim();
-      if (editingLongTagId) {
-        state.longTermTags = state.longTermTags.map(t => t.id === editingLongTagId ? { ...t, name, note } : t);
-      } else {
-        state.longTermTags.push({ id: id(), name, note, createdDate: new Date().toISOString() });
-      }
-      editingLongTagId = null;
-      $("#longTagDialog").close();
-      render();
-    });
-
-    $("#budgetForm").addEventListener("submit", e => {
-      e.preventDefault();
-      const item = { name: normalizeName($("#budgetName").value), tagId: $("#budgetTag").value, limit: Number($("#budgetLimit").value || 0), note: $("#budgetNote").value.trim(), periodKey: activePeriodKey() };
-      if (editingBudgetId) state.budgets = state.budgets.map(b => b.id === editingBudgetId ? { ...b, ...item } : b);
-      else state.budgets.push({ id: id(), ...item });
-      editingBudgetId = null;
-      $("#budgetDialog").close();
-      render();
-    });
-
-    $("#accountForm").addEventListener("submit", e => {
-      e.preventDefault();
-      const item = { kind: $("#accountKind").value, name: normalizeName($("#accountName").value), balance: Number($("#accountBalance").value || 0), note: $("#accountNote").value.trim() };
-      if (editingAccountId) state.accounts = state.accounts.map(a => a.id === editingAccountId ? { ...a, ...item } : a);
-      else state.accounts.push({ id: id(), ...item });
-      editingAccountId = null;
-      $("#accountDialog").close();
-      render();
-    });
-
-    $("#transferForm").addEventListener("submit", e => {
-      e.preventDefault();
-      const fromId = $("#transferFrom").value;
-      const toId = $("#transferTo").value;
-      const amount = Number($("#transferAmount").value || 0);
-      if (fromId === toId) return alert("转出和转入账户不能相同。");
-      if (!amount || amount <= 0) return alert("金额要大于 0。");
-      const from = accountById(fromId);
-      const to = accountById(toId);
-      from.balance -= amount;
-      to.balance += amount;
-      state.transactions.unshift({ id: id(), type: "transfer", amount, accountId: fromId, toAccountId: toId, note: $("#transferNote").value.trim(), date: new Date().toISOString() });
-      $("#transferForm").reset();
-      $("#transferDialog").close();
-      toast("内部转账已记录，不计入收支。");
-      render();
-    });
-
-    $("#savingsForm").addEventListener("submit", e => {
-      e.preventDefault();
-      state.savingsGoals.push({ id: id(), name: normalizeName($("#savingsName").value), amount: Number($("#savingsAmount").value || 0), note: $("#savingsNote").value.trim() });
-      $("#savingsDialog").close();
-      render();
-    });
-
-    $("#saveSafetyBtn").addEventListener("click", () => {
-      state.safetyBalance = Number($("#safetyBalanceInput").value || 0);
-      toast("安全余额已更新（不留修改记录）。");
-      render();
-    });
-
-    $("#periodABtn").addEventListener("click", () => { currentPeriod = "A"; $("#periodABtn").classList.add("active"); $("#periodBBtn").classList.remove("active"); renderBudgets(); });
-    $("#periodBBtn").addEventListener("click", () => { currentPeriod = "B"; $("#periodBBtn").classList.add("active"); $("#periodABtn").classList.remove("active"); renderBudgets(); });
-
-    $("#calendarMonth").addEventListener("change", render);
-    $("#chartMonth").addEventListener("change", renderChart);
-    $("#chartType").addEventListener("change", renderChart);
-    $("#chartMode").addEventListener("change", renderChart);
-    $("#prevMonthBtn").addEventListener("click", () => shiftMonth("#calendarMonth", -1));
-    $("#nextMonthBtn").addEventListener("click", () => shiftMonth("#calendarMonth", 1));
-
-    function shiftMonth(inputId, delta) {
-      const el = $(inputId);
-      const [y, m] = (el.value || monthKey()).split("-").map(Number);
-      const d = new Date(y, m - 1 + delta, 1);
-      el.value = monthKey(d);
-      render();
-    }
-
-    $("#exportBtn").addEventListener("click", () => {
-      const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `我的小账本备份-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast("✅ 已导出 JSON 备份。");
-    });
-
-    $("#exportCsvBtn").addEventListener("click", () => {
-      const header = ["日期", "时间", "收支类型", "金额", "账户", "标签", "用途", "备注"];
-      const rows = state.transactions.map(tx => {
-        const d = new Date(tx.date);
-        const tag = tx.tagId ? tagById(tx.tagId).name : "";
-        const account = accountById(tx.accountId)?.name || "";
-        const typeLabel = tx.type === "income" ? "收入" : tx.type === "expense" ? "支出" : "内部转账";
-        return [dateKey(d), d.toLocaleTimeString("zh-CN"), typeLabel, tx.amount, account, tag, tx.note || "", ""];
-      });
-      const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");
-      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `流水导出-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast("✅ 已导出 CSV 流水。");
-    });
-
-    $("#importBtn").addEventListener("click", () => $("#importFile").click());
-    $("#importFile").addEventListener("change", e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          state = migrate(JSON.parse(reader.result));
-          render();
-          toast("✅ 导入成功。");
-        } catch {
-          alert("导入失败：文件格式不对。");
-        }
+    };
+    $('btnAddLong').onclick = () => {
+      openModal(`<div class="row"><h3>长期想法</h3><button class="btn sm line" type="button" id="mc">关闭</button></div>
+        <label class="field"><span>想法名称</span><input id="lg_name" placeholder="比如：新相机 / 换手机"></label>
+        <label class="field"><span>备注</span><textarea id="lg_note" placeholder="随便记点想法，不占预算"></textarea></label>
+        <button class="btn block" type="button" id="lg_ok">保存</button>`);
+      $('mc').onclick=closeModal;
+      $('lg_ok').onclick=()=>{
+        const name=$('lg_name').value.trim(); if(!name) return toast('填写想法名称');
+        S.longTags.push({id:uid(), name, note:$('lg_note').value.trim(), createdAt:Date.now()});
+        save(); closeModal(); toast('已保存'); render();
       };
-      reader.readAsText(file);
-      e.target.value = "";
+    };
+    document.querySelectorAll('[data-long-del]').forEach(b => b.onclick=()=>{
+      S.longTags = S.longTags.filter(t=>t.id!==b.dataset.longDel); save(); render();
     });
-
-    $("#clearTxBtn").addEventListener("click", () => {
-      if (!confirm("确定清空流水吗？这不会自动恢复账户余额。")) return;
-      state.transactions = [];
-      render();
+    document.querySelectorAll('[data-long-use]').forEach(b => b.onclick=()=>{
+      const t = S.longTags.find(x=>x.id===b.dataset.longUse); if(!t) return;
+      $('a_item').value = t.name;
+      $('a_note').value = t.note||'';
+      toast('已填入表单，补充金额和标签即可');
+      window.scrollTo({top:0, behavior:'smooth'});
     });
+  }
 
-    $("#resetBtn").addEventListener("click", () => {
-      if (!confirm("确定恢复初始示例吗？当前数据会被覆盖。")) return;
-      state = structuredClone(defaultState);
-      render();
+  if(page==='cal'){
+    $('prevM').onclick=()=>{ const [y,m]=S.ui.month.split('-').map(Number); const d=new Date(y,m-2,1); S.ui.month=ym(d); S.ui.calDay=null; save(); render(); };
+    $('nextM').onclick=()=>{ const [y,m]=S.ui.month.split('-').map(Number); const d=new Date(y,m,1); S.ui.month=ym(d); S.ui.calDay=null; save(); render(); };
+    document.querySelectorAll('[data-day]').forEach(b => b.onclick=()=>{
+      S.ui.calDay = S.ui.calDay===b.dataset.day ? null : b.dataset.day; save(); render();
     });
-
-    window.addEventListener("resize", () => {
-      clearTimeout(window.__resizeTimer);
-      window.__resizeTimer = setTimeout(renderChart, 120);
-    });
-
-    window.openTag = function (tagId = null) {
-      editingTagId = tagId;
-      const tag = state.tags.find(t => t.id === tagId);
-      $("#tagDialogTitle").textContent = tagId ? "编辑标签" : "新建消费标签";
-      $("#tagName").value = tag?.name || "";
-      $("#tagColor").value = tag?.color || DEFAULT_COLORS[state.tags.length % DEFAULT_COLORS.length];
-      $("#tagAllowOverspend").checked = !!tag?.allowOverspend;
-      $("#tagDialog").showModal();
-    };
-    window.deleteTag = function (tagId) {
-      const tag = tagById(tagId);
-      if (state.tags.length <= 1) return alert("至少要保留一个标签。");
-      if (!confirm(`确定删除标签"${tag.name}"吗？已有流水、预算和计划会转到"其他"。`)) return;
-      const other = state.tags.find(t => t.name === "其他" && t.id !== tagId) || state.tags.find(t => t.id !== tagId);
-      state.transactions = state.transactions.map(tx => tx.tagId === tagId ? { ...tx, tagId: other.id } : tx);
-      state.budgets = state.budgets.map(b => b.tagId === tagId ? { ...b, tagId: other.id } : b);
-      state.plans = state.plans.map(p => p.tagId === tagId ? { ...p, tagId: other.id } : p);
-      state.tags = state.tags.filter(t => t.id !== tagId);
-      render();
-    };
-
-    window.openLongTag = function (tagId = null) {
-      editingLongTagId = tagId;
-      const t = state.longTermTags.find(x => x.id === tagId);
-      $("#longTagDialogTitle").textContent = tagId ? "编辑想法" : "新长期想法";
-      $("#longTagName").value = t?.name || "";
-      $("#longTagNote").value = t?.note || "";
-      $("#longTagDialog").showModal();
-    };
-    window.deleteLongTag = function (tagId) {
-      if (!confirm("确定删除这个长期想法吗？")) return;
-      state.longTermTags = state.longTermTags.filter(t => t.id !== tagId);
-      render();
-    };
-
-    window.openBudget = function (budgetId = null) {
-      editingBudgetId = budgetId;
-      const b = state.budgets.find(x => x.id === budgetId);
-      $("#budgetName").value = b?.name || "";
-      $("#budgetTag").value = b?.tagId || state.tags[0]?.id || "";
-      $("#budgetLimit").value = b?.limit ?? "";
-      $("#budgetNote").value = b?.note || "";
-      $("#budgetDialog").showModal();
-    };
-    window.deleteBudget = function (budgetId) {
-      const b = state.budgets.find(x => x.id === budgetId);
-      if (!b) return;
-      if (!confirm(`确定删除预算"${b.name}"吗？`)) return;
-      state.budgets = state.budgets.filter(x => x.id !== budgetId);
-      render();
-    };
-
-    window.openAccount = function (accountId = null) {
-      editingAccountId = accountId;
-      const a = state.accounts.find(x => x.id === accountId);
-      $("#accountKind").value = a?.kind || "custom";
-      $("#accountName").value = a?.name || "";
-      $("#accountBalance").value = a?.balance ?? "";
-      $("#accountNote").value = a?.note || "";
-      $("#accountDialog").showModal();
-    };
-    window.deleteAccount = function (accountId) {
-      const a = state.accounts.find(x => x.id === accountId);
-      if (!a) return;
-      if (!confirm(`确定删除账户"${a.name}"吗？相关流水会显示未知账户。`)) return;
-      state.accounts = state.accounts.filter(x => x.id !== accountId);
-      render();
-    };
-
-    window.deleteSavings = function (goalId) {
-      if (!confirm("确定删除这个储蓄目标吗？")) return;
-      state.savingsGoals = state.savingsGoals.filter(g => g.id !== goalId);
-      render();
-    };
-
-    window.deleteTransaction = function (txId) {
-      const tx = state.transactions.find(t => t.id === txId);
-      if (!tx) return;
-      if (!confirm("确定删除这一笔记录吗？账户余额会自动改回去。")) return;
-      if (tx.type === "transfer") {
-        const from = accountById(tx.accountId);
-        const to = accountById(tx.toAccountId);
-        if (from) from.balance += tx.amount;
-        if (to) to.balance -= tx.amount;
-      } else {
-        const account = accountById(tx.accountId);
-        if (account) account.balance += tx.type === "income" ? -tx.amount : tx.amount;
+    const cd=$('clearDay'); if(cd) cd.onclick=()=>{ S.ui.calDay=null; save(); render(); };
+    document.querySelectorAll('[data-refund]').forEach(b => b.onclick=()=>doRefund(b.dataset.refund));
+    document.querySelectorAll('[data-del-tx]').forEach(b => b.onclick=()=>{
+      if(!confirm('确定删除这条流水吗？账户余额会自动改回去。')) return;
+      const t=S.txs.find(x=>x.id===b.dataset.delTx); if(!t) return;
+      if(t.type==='transfer'){
+        const from=acc(t.accountId), to=acc(t.toAccountId);
+        if(from) from.balance+=t.amount; if(to) to.balance-=t.amount;
+      } else if(!t.refunded){
+        const a=acc(t.accountId); if(a) a.balance += t.type==='income' ? -t.amount : t.amount;
       }
-      state.transactions = state.transactions.filter(t => t.id !== txId);
-      render();
+      S.txs = S.txs.filter(x=>x.id!==b.dataset.delTx); save(); render();
+    });
+  }
+
+  if(page==='ai'){
+    $('ai_send').onclick = sendChat;
+    $('ai_input').addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); }});
+    $('aiReview').onclick = async () => {
+      const id=$('ai_plan').value; if(!id) return toast('先选择一个计划');
+      await reviewPlan(id); render();
     };
+    $('aiClear').onclick = () => { if(confirm('清空所有对话记录？')){ S.chat=[]; save(); render(); } };
+    document.querySelectorAll('[data-copy]').forEach(b => b.onclick=async ()=>{
+      const m=S.chat[+b.dataset.copy]; if(!m) return;
+      try{ await navigator.clipboard.writeText(m.text); toast('已复制'); }
+      catch{ prompt('复制', m.text); }
+    });
+    document.querySelectorAll('[data-edit]').forEach(b => b.onclick=()=>{
+      const m=S.chat[+b.dataset.edit]; if(!m) return;
+      const t=prompt('编辑', m.text); if(t==null) return; m.text=t; save(); render();
+    });
+    document.querySelectorAll('[data-del]').forEach(b => b.onclick=()=>{
+      S.chat.splice(+b.dataset.del,1); save(); render();
+    });
+  }
 
-    window.openPlanDetail = openPlanDetail;
-    window.confirmPlanPurchase = confirmPlanPurchase;
-    window.markPlanStatus = markPlanStatus;
-    window.markPlanCooldown = markPlanCooldown;
-    window.deletePlan = deletePlan;
+  if(page==='settings'){
+    document.querySelectorAll('[data-panel]').forEach(b => b.onclick=()=>{ S.ui.setPanel=b.dataset.panel; save(); render(); });
+    const back=$('setBack'); if(back) back.onclick=()=>{ S.ui.setPanel=null; save(); render(); };
+    bindSettingsPanel();
+  }
+}
 
-    $("#calendarMonth").value = monthKey();
-    $("#chartMonth").value = monthKey();
-    render();
-  </script>
+function bindSettingsPanel(){
+  const p = S.ui.setPanel; if(!p) return;
+
+  if(p==='accounts'){
+    $('addAcc').onclick=()=>{
+      openModal(`<div class="row"><h3>新增账户</h3><button class="btn sm line" type="button" id="mc">关闭</button></div>
+        <label class="field"><span>账户类型</span><select id="na_kind">
+          <option value="cash">现金</option><option value="wechat">微信余额</option>
+          <option value="alipay">支付宝余额</option><option value="bank">银行卡</option>
+          <option value="custom">自定义</option></select></label>
+        <label class="field"><span>账户名称</span><input id="na_name" placeholder="比如：备用金"></label>
+        <label class="field"><span>当前余额</span><input id="na_bal" type="number" value="0"></label>
+        <button class="btn block" type="button" id="na_ok">保存</button>`);
+      $('mc').onclick=closeModal;
+      $('na_ok').onclick=()=>{
+        const name=$('na_name').value.trim(); if(!name) return toast('填写账户名称');
+        S.accounts.push({id:uid(), kind:$('na_kind').value, name, balance:Number($('na_bal').value||0), note:''});
+        save(); closeModal(); render();
+      };
+    };
+    document.querySelectorAll('[data-edit-acc]').forEach(b=>b.onclick=()=>{
+      const a=acc(b.dataset.editAcc);
+      openModal(`<div class="row"><h3>调整账户</h3><button class="btn sm line" type="button" id="mc">关闭</button></div>
+        <label class="field"><span>名称</span><input id="ea_name" value="${esc(a.name)}"></label>
+        <label class="field"><span>余额</span><input id="ea_bal" type="number" value="${a.balance}"></label>
+        <button class="btn block" type="button" id="ea_ok">保存</button>`);
+      $('mc').onclick=closeModal;
+      $('ea_ok').onclick=()=>{
+        a.name=$('ea_name').value.trim()||a.name; a.balance=Number($('ea_bal').value||0);
+        save(); closeModal(); render();
+      };
+    });
+    document.querySelectorAll('[data-del-acc]').forEach(b=>b.onclick=()=>{
+      if(S.accounts.length<=1) return toast('至少保留一个账户');
+      if(!confirm('确定删除这个账户吗？相关流水会显示未知账户。')) return;
+      S.accounts = S.accounts.filter(a=>a.id!==b.dataset.delAcc); save(); render();
+    });
+  }
+
+  if(p==='budget'){
+    $('saveBudget').onclick=()=>{
+      const b=budget(); b.total=Number($('b_total').value||0); b.set=true; save();
+      toast('已保存'); render();
+    };
+    const sv=$('saveTagBudget');
+    if(sv) sv.onclick=()=>{
+      const b=budget(); b.tagLimits = b.tagLimits||{};
+      document.querySelectorAll('[data-tag-limit]').forEach(inp=>{
+        const v=inp.value.trim();
+        if(v==='') delete b.tagLimits[inp.dataset.tagLimit];
+        else b.tagLimits[inp.dataset.tagLimit]=Number(v);
+      });
+      save(); toast('已保存标签预算'); render();
+    };
+  }
+
+  if(p==='tags'){
+    $('addTag').onclick=()=>{
+      openModal(`<div class="row"><h3>新增标签</h3><button class="btn sm line" type="button" id="mc">关闭</button></div>
+        <label class="field"><span>名称</span><input id="nt_name" placeholder="比如：宠物用品"></label>
+        <label class="field"><span>颜色</span><input id="nt_color" type="color" value="#0d9488"></label>
+        <div class="switch"><span>允许超出预算</span><input id="nt_over" type="checkbox"></div>
+        <div class="switch"><span>始终建议确认</span><input id="nt_quiz" type="checkbox"></div>
+        <label class="field"><span>默认冷静期（天）</span><input id="nt_cool" type="number" value="7"></label>
+        <button class="btn block" type="button" id="nt_ok">保存</button>`);
+      $('mc').onclick=closeModal;
+      $('nt_ok').onclick=()=>{
+        const name=$('nt_name').value.trim(); if(!name) return toast('填写标签名称');
+        S.tags.push({id:uid(), name, color:$('nt_color').value, over:$('nt_over').checked, quiz:$('nt_quiz').checked, cool:Number($('nt_cool').value||0)});
+        save(); closeModal(); render();
+      };
+    };
+    document.querySelectorAll('[data-edit-tag]').forEach(b=>b.onclick=()=>{
+      const t=tag(b.dataset.editTag);
+      openModal(`<div class="row"><h3>编辑标签</h3><button class="btn sm line" type="button" id="mc">关闭</button></div>
+        <label class="field"><span>名称</span><input id="et_name" value="${esc(t.name)}"></label>
+        <label class="field"><span>颜色</span><input id="et_color" type="color" value="${t.color}"></label>
+        <div class="switch"><span>允许超出预算</span><input id="et_over" type="checkbox" ${t.over?'checked':''}></div>
+        <div class="switch"><span>始终建议确认</span><input id="et_quiz" type="checkbox" ${t.quiz?'checked':''}></div>
+        <label class="field"><span>默认冷静期（天）</span><input id="et_cool" type="number" value="${t.cool||0}"></label>
+        <button class="btn block" type="button" id="et_ok">保存</button>`);
+      $('mc').onclick=closeModal;
+      $('et_ok').onclick=()=>{
+        t.name=$('et_name').value.trim()||t.name; t.color=$('et_color').value;
+        t.over=$('et_over').checked; t.quiz=$('et_quiz').checked; t.cool=Number($('et_cool').value||0);
+        save(); closeModal(); render();
+      };
+    });
+    document.querySelectorAll('[data-del-tag]').forEach(b=>b.onclick=()=>{
+      if(S.tags.length<=1) return toast('至少保留一个标签');
+      if(!confirm('确定删除这个标签吗？相关流水和计划会转到"其他"。')) return;
+      const other = S.tags.find(t=>t.id==='other') || S.tags.find(t=>t.id!==b.dataset.delTag);
+      S.txs.forEach(t=>{ if(t.tagId===b.dataset.delTag) t.tagId=other.id; });
+      S.plans.forEach(p=>{ if(p.tagId===b.dataset.delTag) p.tagId=other.id; });
+      S.tags = S.tags.filter(t=>t.id!==b.dataset.delTag); save(); render();
+    });
+  }
+
+  if(p==='goals'){
+    $('addGoal').onclick=()=>{
+      const name=prompt('目标名称'); if(!name) return;
+      const target=Number(prompt('目标金额','1000')||0);
+      S.goals.push({id:uid(), name, target, saved:0}); save(); render();
+    };
+    document.querySelectorAll('[data-g-add]').forEach(b=>b.onclick=()=>{
+      const g=S.goals.find(x=>x.id===b.dataset.gAdd);
+      const n=Number(prompt('存入金额','100')||0); if(!(n>0)) return; g.saved=Number(g.saved)+n; save(); render();
+    });
+    document.querySelectorAll('[data-g-del]').forEach(b=>b.onclick=()=>{
+      if(!confirm('确定删除这个储蓄目标吗？')) return;
+      S.goals=S.goals.filter(x=>x.id!==b.dataset.gDel); save(); render();
+    });
+  }
+
+  if(p==='model'){
+    $('saveModel').onclick=()=>{
+      S.settings.modelOn=$('m_on').checked;
+      S.api.baseURL=$('m_url').value.trim();
+      S.api.apiKey=$('m_key').value.trim();
+      S.api.model=$('m_model').value;
+      S.api.timeout=Number($('m_timeout').value||30000);
+      save(); toast('已保存');
+    };
+    $('clearModel').onclick=()=>{
+      if(!confirm('确定清除本地保存的URL、Key和模型选择吗？')) return;
+      S.api.baseURL=''; S.api.apiKey=''; S.api.models=[]; S.settings.modelOn=false;
+      save(); toast('已清除'); render();
+    };
+    $('pullModels').onclick=async ()=>{
+      S.api.baseURL=$('m_url').value.trim(); S.api.apiKey=$('m_key').value.trim();
+      $('m_msg').textContent='拉取中…';
+      try{
+        const res=await fetch(S.api.baseURL.replace(/\/$/,'')+'/models',{headers:{Authorization:'Bearer '+S.api.apiKey}});
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        const data=await res.json();
+        S.api.models=(data.data||[]).map(x=>x.id).filter(Boolean);
+        if(S.api.models.length && !S.api.models.includes(S.api.model)) S.api.model=S.api.models[0];
+        save(); $('m_msg').textContent='已拉取 '+S.api.models.length+' 个模型'; render();
+      }catch(e){
+        if(/Failed to fetch|NetworkError/i.test(String(e.message||e)))
+          $('m_msg').textContent='当前API服务不支持浏览器直接访问，需要更换支持浏览器调用的接口，或使用自己的代理服务。';
+        else $('m_msg').textContent='拉取失败：'+e.message;
+      }
+    };
+    $('testModel').onclick=async ()=>{
+      S.settings.modelOn=true;
+      S.api.baseURL=$('m_url').value.trim();
+      S.api.apiKey=$('m_key').value.trim();
+      S.api.model=$('m_model').value;
+      $('m_msg').textContent='测试中…';
+      const start=Date.now();
+      try{
+        const t=await callAI([{role:'user', content:'只回复：连接成功'}]);
+        $('m_msg').textContent=`连接成功 · 耗时${Date.now()-start}ms · 模型：${S.api.model} · 返回：`+String(t).slice(0,40);
+      }
+      catch(e){ $('m_msg').textContent='错误：'+e.message; }
+    };
+    $('restorePrompt').onclick=()=>{ $('m_prompt').value=PROMPT; };
+    $('savePrompt').onclick=()=>{ S.api.prompt=$('m_prompt').value; save(); toast('提示词已保存'); };
+  }
+
+  if(p==='prefs'){
+    $('savePrefs').onclick=()=>{
+      S.settings.safe=Number($('p_safe').value||0);
+      S.settings.quizAmount=Number($('p_quiz').value||25);
+      save(); toast('已保存');
+    };
+  }
+
+  if(p==='data'){
+    $('exportJson').onclick=()=>{
+      const dump=JSON.parse(JSON.stringify(S));
+      dump.api.apiKey='';
+      const blob=new Blob([JSON.stringify(dump,null,2)],{type:'application/json'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+      a.download='清醒消费备份-'+today()+'.json'; a.click();
+      toast('已导出');
+    };
+    $('exportCsv').onclick=()=>{
+      const header=['日期','收支类型','金额','账户','标签','用途','是否退款','备注'];
+      const rows=S.txs.map(t=>[t.date, t.type==='income'?'收入':t.type==='expense'?'支出':'内部转账', t.amount, acc(t.accountId)?.name||'', t.tagId?tag(t.tagId).name:'', t.item||'', t.refunded?'是':'否', t.note||'']);
+      const csv=[header,...rows].map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\n');
+      const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+      a.download='流水导出-'+today()+'.csv'; a.click();
+      toast('已导出');
+    };
+    $('importJson').onchange=async e=>{
+      const f=e.target.files?.[0]; if(!f) return;
+      try{
+        const data=JSON.parse(await f.text());
+        const accCount=(data.accounts||[]).length, txCount=(data.txs||[]).length;
+        if(!confirm(`文件包含 ${accCount} 个账户，${txCount} 条流水。导入将覆盖当前全部数据，继续？`)) return;
+        const base=DEFAULT();
+        S=Object.assign(base, data, {
+          settings:Object.assign(base.settings, data.settings||{}),
+          api:Object.assign(base.api, data.api||{}),
+          ui:Object.assign(base.ui, data.ui||{})
+        });
+        save(); toast('导入完成'); render();
+      }catch(err){ toast('导入失败：文件格式不对'); }
+    };
+    $('clearTxOnly').onclick=()=>{
+      if(!confirm('确定清空所有流水吗？这不会自动恢复账户余额，建议先导出备份。')) return;
+      S.txs=[]; save(); toast('流水已清空'); render();
+    };
+    $('resetAll').onclick=()=>{
+      if(!confirm('确定恢复初始示例吗？当前全部数据会被覆盖，建议先导出备份。')) return;
+      S=DEFAULT(); save(); toast('已恢复'); render();
+    };
+  }
+}
+
+$('nav').addEventListener('click', e => {
+  const btn=e.target.closest('button[data-page]'); if(!btn) return;
+  page=btn.dataset.page;
+  if(page!=='settings') S.ui.setPanel=null;
+  save();
+  render();
+});
+
+render();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
 </body>
 </html>
