@@ -83,6 +83,18 @@ textarea{min-height:88px;resize:vertical}
 .composer{display:flex;gap:8px;align-items:flex-end}
 .composer textarea{min-height:44px;max-height:120px}
 .list-btn{width:100%;text-align:left;border:0;background:transparent;padding:14px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.chat-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 2px 10px}
+.chat-head button{flex:0 0 auto;border:0;background:transparent;color:var(--muted);font-size:12.5px;font-weight:600;padding:6px 8px;border-radius:10px;display:flex;align-items:center;gap:4px}
+.chat-head button:active{background:#f3f4f6}
+.chat-head strong{font-size:14px;font-weight:700;color:var(--text)}
+.thinking{display:flex;align-items:center;gap:6px;padding:9px 12px;color:var(--muted);font-size:13px}
+.thinking .dots{display:inline-flex;gap:3px}
+.thinking .dots i{width:5px;height:5px;border-radius:50%;background:#c8ccd2;animation:blink 1.2s infinite ease-in-out}
+.thinking .dots i:nth-child(2){animation-delay:.2s}
+.thinking .dots i:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+.cursor-blink{display:inline-block;width:2px;height:14px;background:var(--brand);margin-left:1px;vertical-align:-2px;animation:caret 1s infinite}
+@keyframes caret{50%{opacity:0}}
 .list-btn:last-child{border-bottom:0}
 .list-btn strong{font-size:14px;font-weight:600}
 .list-btn span{color:var(--muted);font-size:12px}
@@ -270,7 +282,7 @@ function guessKind(name){
   return 'custom';
 }
 
-async function callAI(messages){
+async function callAI(messages, onDelta){
   if(!S.settings.modelOn) throw new Error('请先在"我的-模型 API"中启用模型');
   if(!S.api.baseURL || !S.api.apiKey) throw new Error('请先填写 Base URL 和 API Key');
   const ctrl = new AbortController();
@@ -282,13 +294,41 @@ async function callAI(messages){
       body: JSON.stringify({
         model: S.api.model,
         temperature: 0.4,
+        stream: !!onDelta,
         messages: [{role:'system', content:S.api.prompt||PROMPT}, ...messages]
       }),
       signal: ctrl.signal
     });
     if(!res.ok) throw new Error('HTTP '+res.status);
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content || '';
+
+    if(!onDelta || !res.body){
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || '';
+    }
+
+    // stream SSE chunks
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '', full = '';
+    while(true){
+      const {value, done} = await reader.read();
+      if(done) break;
+      buf += decoder.decode(value, {stream:true});
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for(const line of lines){
+        const trimmed = line.trim();
+        if(!trimmed.startsWith('data:')) continue;
+        const payload = trimmed.slice(5).trim();
+        if(payload === '[DONE]') continue;
+        try{
+          const json = JSON.parse(payload);
+          const delta = json.choices?.[0]?.delta?.content || '';
+          if(delta){ full += delta; onDelta(full); }
+        }catch{}
+      }
+    }
+    return full;
   }catch(e){
     if(e.name==='AbortError') throw new Error('请求超时');
     if(/Failed to fetch|NetworkError|CORS/i.test(String(e.message||e)))
@@ -544,17 +584,68 @@ async function askAI(text){
   s.chat.push({role:'user', text, at:Date.now()}); save(); render();
   await replyAI();
 }
+let thinkingTimer = null;
+function startThinking(){
+  const box = $('chatBox'); if(!box) return;
+  const el = document.createElement('div');
+  el.className = 'thinking'; el.id = 'thinkingRow';
+  el.innerHTML = `<span class="dots"><i></i><i></i><i></i></span><span id="thinkingSec">思考中 0s</span>`;
+  box.appendChild(el);
+  el.scrollIntoView({behavior:'smooth', block:'end'});
+  let sec = 0;
+  thinkingTimer = setInterval(()=>{
+    sec++;
+    const s = $('thinkingSec'); if(s) s.textContent = `思考中 ${sec}s`;
+  }, 1000);
+}
+function stopThinking(){
+  clearInterval(thinkingTimer); thinkingTimer = null;
+  $('thinkingRow')?.remove();
+}
+
 async function replyAI(){
   const s = curSession();
   const ctx = contextSince(s.chat).slice(-8);
   const hist = ctx.map(m => ({role: m.role==='user'?'user':'assistant', content:m.text}));
-  let text='';
+
+  if(!S.settings.modelOn){
+    const text = '（未启用模型，本地简要建议）\n先看是否在本半月预算内，是否会碰到安全余额；若可替代或可等待，先放 7 天；快乐消费可以有，但别动专项储蓄和安全余额。';
+    s.chat.push({role:'assistant', text, at:Date.now()}); save(); render();
+    $('chatBox')?.lastElementChild?.scrollIntoView({behavior:'smooth', block:'end'});
+    return;
+  }
+
+  startThinking();
+  const msgIndex = s.chat.length;
+  s.chat.push({role:'assistant', text:'', at:Date.now(), streaming:true});
+  let firstToken = true;
   try{
-    if(S.settings.modelOn) text = await callAI(hist);
-    else text = '（未启用模型，本地简要建议）\n先看是否在本半月预算内，是否会碰到安全余额；若可替代或可等待，先放 7 天；快乐消费可以有，但别动专项储蓄和安全余额。';
-  }catch(e){ text = '出错了：' + e.message; }
-  s.chat.push({role:'assistant', text, at:Date.now()}); save(); render();
+    const full = await callAI(hist, (partial)=>{
+      if(firstToken){ stopThinking(); firstToken = false; }
+      s.chat[msgIndex].text = partial;
+      const box = $('chatBox');
+      if(box){
+        const wrap = box.children[msgIndex];
+        if(wrap){ wrap.querySelector('.bubble').innerHTML = esc(partial) + '<span class="cursor-blink"></span>'; }
+      }
+    });
+    s.chat[msgIndex].text = full || '（没有收到回复内容）';
+    s.chat[msgIndex].streaming = false;
+  }catch(e){
+    stopThinking();
+    s.chat[msgIndex].text = '出错了：' + e.message;
+    s.chat[msgIndex].streaming = false;
+  }
+  save(); render();
   $('chatBox')?.lastElementChild?.scrollIntoView({behavior:'smooth', block:'end'});
+}
+
+async function retryReply(i){
+  const s = curSession();
+  // remove this assistant message and everything after it, then regenerate
+  s.chat = s.chat.slice(0, i);
+  save(); render();
+  await replyAI();
 }
 async function reviewPlan(id){
   const p=S.plans.find(x=>x.id===id); if(!p) return;
@@ -782,23 +873,19 @@ function viewAI(){
   const s = curSession();
   const openPlans = S.plans.filter(p=>p.status==='open'||p.status==='cooldown');
   return `
-  <div class="card">
-    <button class="list-btn" type="button" id="sessionPicker" style="border:0">
-      <strong>${esc(s.name)}</strong>
-      <span>${S.sessions.length} 个对话 · 切换/新建 ›</span>
-    </button>
-  </div>
-  <div class="card chat" id="chatBox">
-    ${s.chat.length? s.chat.map((m,i)=>bubble(m,i,s)).join('') : `<div class="empty">有纠结就直接问，AI 会结合预算给建议<br>右上角可以关联一个计划一起审批</div>`}
-  </div>
-  <div class="card">
-    <div style="display:flex;gap:8px;margin-bottom:10px">
-      <select id="ai_plan" style="flex:1">
-        <option value="">不关联计划</option>
-        ${openPlans.map(p=>`<option value="${p.id}">${esc(p.item)} · ${money(p.amount)}</option>`).join('')}
+  <div class="card" style="padding:12px 14px 6px">
+    <div class="chat-head">
+      <button type="button" id="sessionPicker"><strong>${esc(s.name)}</strong><span class="muted" style="font-weight:500">· ${S.sessions.length}个 ›</span></button>
+      <select id="ai_plan" style="width:auto;max-width:118px;padding:6px 8px;font-size:12px;border-radius:10px">
+        <option value="">不关联</option>
+        ${openPlans.map(p=>`<option value="${p.id}">${esc(p.item)}</option>`).join('')}
       </select>
-      <button class="btn sm line" type="button" id="aiReview">审批</button>
     </div>
+    <div class="chat" id="chatBox">
+      ${s.chat.length? s.chat.map((m,i)=>bubble(m,i,s)).join('') : `<div class="empty" style="padding:18px 8px">有纠结就直接问，AI 会结合预算给建议</div>`}
+    </div>
+  </div>
+  <div class="card">
     <div class="composer">
       <textarea id="ai_input" placeholder="例如：想买耳机，但不是刚需"></textarea>
       <button class="btn" type="button" id="ai_send">发送</button>
@@ -809,20 +896,24 @@ function viewAI(){
 
 function bubble(m, i, s){
   if(m.role==='divider') return `<div class="session-divider">新的上下文开始</div>`;
-  return `<div class="bubble-wrap ${m.role==='user'?'me':'ai'}">
-    <div class="bubble ${m.role==='user'?'me':'ai'}">${esc(m.text)}</div>
-    <div class="tools">
-      <button class="icon" type="button" data-copy="${i}" title="复制">${svgCopy()}</button>
-      <button class="icon" type="button" data-split="${i}" title="从这里开始新上下文">${svgSplit()}</button>
-      <button class="icon" type="button" data-edit="${i}" title="编辑">${svgEdit()}</button>
-      <button class="icon" type="button" data-del="${i}" title="删除">${svgDel()}</button>
-    </div>
+  const isMe = m.role==='user';
+  const tools = isMe
+    ? `<button class="icon" type="button" data-edit="${i}" title="编辑">${svgEdit()}</button>
+       <button class="icon" type="button" data-del="${i}" title="删除">${svgDel()}</button>`
+    : `<button class="icon" type="button" data-copy="${i}" title="复制">${svgCopy()}</button>
+       <button class="icon" type="button" data-retry="${i}" title="重试">${svgRetry()}</button>
+       <button class="icon" type="button" data-split="${i}" title="从这里开始新上下文">${svgSplit()}</button>
+       <button class="icon" type="button" data-del="${i}" title="删除">${svgDel()}</button>`;
+  return `<div class="bubble-wrap ${isMe?'me':'ai'}">
+    <div class="bubble ${isMe?'me':'ai'}">${esc(m.text)}${m.streaming?'<span class="cursor-blink"></span>':''}</div>
+    <div class="tools">${tools}</div>
   </div>`;
 }
 function svgCopy(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'}
 function svgEdit(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>'}
 function svgDel(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>'}
 function svgSplit(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v12a3 3 0 003 3h9"/><path d="M15 6l3-3 3 3M15 3v12"/></svg>'}
+function svgRetry(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>'}
 
 function viewSettings(){
   if(S.ui.setPanel) return viewSetPanel(S.ui.setPanel);
@@ -1121,10 +1212,11 @@ function bind(){
   if(page==='ai'){
     $('ai_send').onclick = sendChat;
     $('ai_input').addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); }});
-    $('aiReview').onclick = async () => {
-      const id=$('ai_plan').value; if(!id) return toast('先选择一个计划');
+    $('ai_plan').addEventListener('change', async e => {
+      const id = e.target.value; if(!id) return;
+      e.target.value = '';
       await reviewPlan(id); render();
-    };
+    });
     $('sessionPicker').onclick = openSessionPicker;
     document.querySelectorAll('[data-copy]').forEach(b => b.onclick=async ()=>{
       const s=curSession(); const m=s.chat[+b.dataset.copy]; if(!m) return;
@@ -1133,6 +1225,9 @@ function bind(){
     });
     document.querySelectorAll('[data-split]').forEach(b => b.onclick=()=>{
       splitContext(+b.dataset.split);
+    });
+    document.querySelectorAll('[data-retry]').forEach(b => b.onclick=()=>{
+      retryReply(+b.dataset.retry);
     });
     document.querySelectorAll('[data-edit]').forEach(b => b.onclick=()=>{
       const s=curSession(); const m=s.chat[+b.dataset.edit]; if(!m) return;
