@@ -68,7 +68,7 @@ textarea{min-height:88px;resize:vertical}
 .nav button{border:0;background:transparent;color:#9ca3af;font-size:11px;border-radius:12px;padding:6px 2px}
 .nav button.active{color:var(--brand);background:var(--brand-soft);font-weight:700}
 .empty{padding:28px 8px;text-align:center;color:var(--muted);font-size:13px;line-height:1.6}
-.chat{display:flex;flex-direction:column;gap:4px;min-height:36vh}
+.chat{display:flex;flex-direction:column;gap:4px;overflow-y:auto;flex:1 1 0;min-height:0;padding:4px 0 8px}
 .bubble-wrap{display:flex;flex-direction:column;max-width:92%}
 .bubble-wrap.me{align-self:flex-end;align-items:flex-end}
 .bubble-wrap.ai{align-self:flex-start;align-items:flex-start}
@@ -83,9 +83,12 @@ textarea{min-height:88px;resize:vertical}
 .session-divider{display:flex;align-items:center;gap:8px;margin:6px 0;color:#c8ccd2;font-size:10px}
 .session-divider::before,.session-divider::after{content:'';flex:1;height:1px;background:#eef0f2}
 .composer{display:flex;gap:8px;align-items:flex-end}
-.composer textarea{min-height:44px;max-height:120px}
+.composer textarea{min-height:44px;max-height:120px;resize:none}
+.ai-send-btn{border:0;border-radius:12px;padding:11px 12px;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+.ai-send-btn:active{transform:scale(.96)}
+.ai-send-btn svg{width:18px;height:18px}
 .list-btn{width:100%;text-align:left;border:0;background:transparent;padding:14px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
-.chat-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 2px 10px}
+.chat-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 2px 10px;flex:0 0 auto;border-bottom:1px solid var(--line);margin-bottom:10px}
 .chat-head button{flex:0 0 auto;border:0;background:transparent;color:var(--muted);font-size:12.5px;font-weight:600;padding:6px 8px;border-radius:10px;display:flex;align-items:center;gap:4px}
 .chat-head button:active{background:#f3f4f6}
 .chat-head strong{font-size:14px;font-weight:700;color:var(--text)}
@@ -156,6 +159,11 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 .segmented{display:flex;background:#f3f4f6;border-radius:12px;padding:4px;gap:4px}
 .segmented .qa-type{flex:1;border:0;background:transparent;color:var(--muted);font-weight:700;font-size:13px;padding:9px;border-radius:9px}
 .segmented .qa-type.active{background:#fff;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+/* AI page three-panel layout */
+.ai-page{display:flex;flex-direction:column;height:calc(100vh - var(--nav) - var(--safe) - 56px);min-height:0}
+.ai-chat-panel{display:flex;flex-direction:column;flex:1 1 0;min-height:0;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 14px 10px;margin-bottom:0;overflow:hidden}
+.ai-composer-panel{flex:0 0 auto;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 14px;margin-top:10px}
+.ai-status{color:var(--muted);font-size:12px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -631,7 +639,7 @@ function startThinking(){
   el.className = 'thinking'; el.id = 'thinkingRow';
   el.innerHTML = `<span class="dots"><i></i><i></i><i></i></span><span id="thinkingSec">思考中 0s</span>`;
   box.appendChild(el);
-  el.scrollIntoView({behavior:'smooth', block:'end'});
+  box.scrollTop = box.scrollHeight;
   let sec = 0;
   thinkingTimer = setInterval(()=>{
     sec++;
@@ -651,7 +659,7 @@ async function replyAI(){
   if(!S.settings.modelOn){
     const text = '（未启用模型，本地简要建议）\n先看是否在本半月预算内，是否会碰到安全余额；若可替代或可等待，先放 7 天；快乐消费可以有，但别动专项储蓄和安全余额。';
     s.chat.push({role:'assistant', text, at:Date.now()}); save(); render();
-    $('chatBox')?.lastElementChild?.scrollIntoView({behavior:'smooth', block:'end'});
+    const box=$('chatBox'); if(box) box.scrollTop=box.scrollHeight;
     return;
   }
 
@@ -667,6 +675,7 @@ async function replyAI(){
       if(box){
         const wrap = box.children[msgIndex];
         if(wrap){ wrap.querySelector('.bubble').innerHTML = esc(partial) + '<span class="cursor-blink"></span>'; }
+        box.scrollTop = box.scrollHeight;
       }
     });
     s.chat[msgIndex].text = full || '（没有收到回复内容）';
@@ -677,7 +686,7 @@ async function replyAI(){
     s.chat[msgIndex].streaming = false;
   }
   save(); render();
-  $('chatBox')?.lastElementChild?.scrollIntoView({behavior:'smooth', block:'end'});
+  const box=$('chatBox'); if(box) box.scrollTop=box.scrollHeight;
 }
 
 async function retryReply(i){
@@ -713,6 +722,8 @@ function setChrome(){
   $('title').textContent = m[0];
   $('sub').textContent = m[1];
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.page===page));
+  // AI页关闭.app的padding-bottom让三段式布局能撑满
+  document.querySelector('.app').style.paddingBottom = page==='ai' ? '0' : '';
 }
 
 function viewHome(){
@@ -915,24 +926,26 @@ function viewAI(){
   const s = curSession();
   const openPlans = S.plans.filter(p=>p.status==='open'||p.status==='cooldown');
   return `
-  <div class="card" style="padding:12px 14px 6px">
-    <div class="chat-head">
-      <button type="button" id="sessionPicker"><strong>${esc(s.name)}</strong><span class="muted" style="font-weight:500">· ${S.sessions.length}个 ›</span></button>
-      <select id="ai_plan" style="width:auto;max-width:118px;padding:6px 8px;font-size:12px;border-radius:10px">
-        <option value="">不关联</option>
-        ${openPlans.map(p=>`<option value="${p.id}">${esc(p.item)}</option>`).join('')}
-      </select>
+  <div class="ai-page">
+    <div class="ai-chat-panel">
+      <div class="chat-head">
+        <button type="button" id="sessionPicker"><strong>${esc(s.name)}</strong><span class="muted" style="font-weight:500">· ${S.sessions.length}个 ›</span></button>
+        <select id="ai_plan" style="width:auto;max-width:118px;padding:6px 8px;font-size:12px;border-radius:10px">
+          <option value="">不关联</option>
+          ${openPlans.map(p=>`<option value="${p.id}">${esc(p.item)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="chat" id="chatBox">
+        ${s.chat.length? s.chat.map((m,i)=>bubble(m,i,s)).join('') : `<div class="empty" style="padding:18px 8px">有纠结就直接问，AI 会结合预算给建议</div>`}
+      </div>
     </div>
-    <div class="chat" id="chatBox">
-      ${s.chat.length? s.chat.map((m,i)=>bubble(m,i,s)).join('') : `<div class="empty" style="padding:18px 8px">有纠结就直接问，AI 会结合预算给建议</div>`}
+    <div class="ai-composer-panel">
+      <div class="composer">
+        <textarea id="ai_input" placeholder="例如：想买耳机，但不是刚需"></textarea>
+        <button class="ai-send-btn" type="button" id="ai_send" title="发送">${svgSend()}</button>
+      </div>
+      <div class="ai-status">${S.settings.modelOn?('模型：'+esc(S.api.model)):'未启用模型时，使用本地简要建议'}</div>
     </div>
-  </div>
-  <div class="card">
-    <div class="composer">
-      <textarea id="ai_input" placeholder="例如：想买耳机，但不是刚需"></textarea>
-      <button class="btn" type="button" id="ai_send">发送</button>
-    </div>
-    <div class="muted" style="margin-top:8px">${S.settings.modelOn?('模型：'+esc(S.api.model)):'未启用模型时，使用本地简要建议'}</div>
   </div>`;
 }
 
@@ -956,6 +969,7 @@ function svgEdit(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentC
 function svgDel(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>'}
 function svgSplit(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v12a3 3 0 003 3h9"/><path d="M15 6l3-3 3 3M15 3v12"/></svg>'}
 function svgRetry(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>'}
+function svgSend(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>'}
 function svgPencil(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>'}
 function svgTrash(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>'}
 function svgPlus(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>'}
@@ -1236,7 +1250,16 @@ function render(){
   setChrome();
   const view = { home: viewHome, add: viewAdd, cal: viewCal, ai: viewAI, settings: viewSettings }[page];
   $('view').innerHTML = view();
+  // AI页：.main不需要额外padding，布局靠ai-page flex撑
+  $('view').style.height = page==='ai' ? 'calc(100vh - var(--nav) - 56px)' : '';
+  $('view').style.overflow = page==='ai' ? 'hidden' : '';
   bind();
+  // 进入AI页时滚动到底部
+  if(page==='ai'){
+    requestAnimationFrame(()=>{
+      const box=$('chatBox'); if(box) box.scrollTop=box.scrollHeight;
+    });
+  }
 }
 
 function bind(){
