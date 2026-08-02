@@ -83,10 +83,10 @@ textarea{min-height:88px;resize:vertical}
 .session-divider{display:flex;align-items:center;gap:8px;margin:6px 0;color:#c8ccd2;font-size:10px}
 .session-divider::before,.session-divider::after{content:'';flex:1;height:1px;background:#eef0f2}
 .composer{display:flex;gap:8px;align-items:flex-end}
-.composer textarea{min-height:44px;max-height:120px;resize:none}
-.ai-send-btn{border:0;border-radius:12px;padding:11px 12px;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+.composer textarea{min-height:44px;max-height:96px;resize:none;overflow-y:auto}
+.ai-send-btn{border:0;border-radius:12px;padding:0;width:44px;height:44px;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;align-self:flex-end}
 .ai-send-btn:active{transform:scale(.96)}
-.ai-send-btn svg{width:18px;height:18px}
+.ai-send-btn svg{width:16px;height:16px}
 .list-btn{width:100%;text-align:left;border:0;background:transparent;padding:14px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
 .chat-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 2px 10px;flex:0 0 auto;border-bottom:1px solid var(--line);margin-bottom:10px}
 .chat-head button{flex:0 0 auto;border:0;background:transparent;color:var(--muted);font-size:12.5px;font-weight:600;padding:6px 8px;border-radius:10px;display:flex;align-items:center;gap:4px}
@@ -135,8 +135,8 @@ textarea{min-height:88px;resize:vertical}
 .pillbar button.active{background:#111827;color:#fff;border-color:#111827}
 .quiz-opt{flex:0 0 auto;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:12.5px;font-weight:600;padding:8px 12px;border-radius:12px;text-align:left}
 .quiz-opt.active{background:var(--brand);color:#fff;border-color:var(--brand)}
-input[type=date]{width:100%;max-width:100%;box-sizing:border-box;display:block;min-width:0}
-input[type=date]::-webkit-date-and-time-value{text-align:left}
+input[type=date]{width:100%;max-width:100%;box-sizing:border-box;display:block;min-width:0;height:44px;-webkit-appearance:none;appearance:none;padding-top:0;padding-bottom:0;line-height:44px}
+input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0}
 .sheet-modal{width:min(430px,100%);background:#fff;border-radius:22px 22px 0 0;height:min(80vh,620px);display:flex;flex-direction:column;overflow:hidden}
 .sheet-head{flex:0 0 auto;padding:16px 16px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
 .sheet-head h3{margin:0;font-size:17px}
@@ -264,7 +264,6 @@ function load(){
       tags: Array.isArray(parsed.tags) && parsed.tags.length ? parsed.tags : base.tags,
       longTags: Array.isArray(parsed.longTags) ? parsed.longTags : []
     });
-    // migrate legacy flat chat[] into sessions[]
     if(Array.isArray(parsed.chat) && parsed.chat.length && (!Array.isArray(parsed.sessions) || !parsed.sessions.length)){
       merged.sessions = [{id:'s0', name:'对话 1', chat:parsed.chat, createdAt:Date.now()}];
       merged.ui.curSession = 's0';
@@ -317,7 +316,6 @@ function guessKind(name){
   return 'custom';
 }
 function nextTagColor(){
-  // golden-angle hue rotation keeps consecutive colors maximally distinct
   const hue = (S.tags.length * 137.508) % 360;
   return hslToHex(hue, 62, 46);
 }
@@ -348,13 +346,10 @@ async function callAI(messages, onDelta){
       signal: ctrl.signal
     });
     if(!res.ok) throw new Error('HTTP '+res.status);
-
     if(!onDelta || !res.body){
       const data = await res.json();
       return data.choices?.[0]?.message?.content || '';
     }
-
-    // stream SSE chunks
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buf = '', full = '';
@@ -389,7 +384,6 @@ function needQuiz(plan){
   const t = tag(plan.tagId);
   if(Number(plan.amount) > Number(S.settings.quizAmount||25)) return true;
   if(t?.quiz) return true;
-  // 条件二：距预算上限不足¥30
   const b = budget();
   if(b.set){
     const tagLimit = b.tagLimits?.[plan.tagId];
@@ -433,7 +427,6 @@ const QUIZ_OPEN = [
 ];
 
 function buildQuiz(){
-  // pick all fixed choice questions + 2 open ones (per original spec: 2-3 open questions)
   return { choice: QUIZ_CHOICE, open: QUIZ_OPEN.slice(0,2) };
 }
 
@@ -506,7 +499,6 @@ function showQuizResult(id, answers){
   if(answers.choice[1] && (answers.choice[1]==='有，凑合能用'||answers.choice[1]==='有，其实够用')){ riskScore++; flags.push('已有同类物品，可能是重复购买'); }
   if(answers.choice[4] && answers.choice[4]==='是，影响很大'){ riskScore++; flags.push('购买欲主要受促销/推荐影响'); }
   if(answers.choice[5] && answers.choice[5]==='不愿意'){ riskScore++; flags.push('没有优惠就不想买，说明可能只是被优惠吸引'); }
-  if(answers.choice[8] && answers.choice[8]==='可以，不着急'){ /* ok to wait, not a risk flag */ }
   const b = budget(); const left = remain();
   const overBudget = b.set && left!=null && Number(p.amount) > left;
   const overSafe = totalAssets() - p.amount < S.settings.safe;
@@ -608,13 +600,11 @@ function renameSession(id, name){
   save();
 }
 function splitContext(i){
-  // insert a divider marker right after message i; everything before the LAST divider is excluded from AI context
   const s = curSession();
   s.chat.splice(i+1, 0, {role:'divider', at:Date.now()});
   save(); render();
 }
 function contextSince(chat){
-  // find the last divider, only use messages after it
   let start = 0;
   for(let i=chat.length-1;i>=0;i--){ if(chat[i].role==='divider'){ start=i+1; break; } }
   return chat.slice(start).filter(m=>m.role!=='divider');
@@ -622,7 +612,7 @@ function contextSince(chat){
 
 async function sendChat(){
   const input=$('ai_input'); const text=input.value.trim(); if(!text) return;
-  input.value='';
+  input.value=''; input.style.height='44px';
   const s = curSession();
   s.chat.push({role:'user', text, at:Date.now()}); save(); render();
   await replyAI();
@@ -691,7 +681,6 @@ async function replyAI(){
 
 async function retryReply(i){
   const s = curSession();
-  // remove this assistant message and everything after it, then regenerate
   s.chat = s.chat.slice(0, i);
   save(); render();
   await replyAI();
@@ -722,7 +711,6 @@ function setChrome(){
   $('title').textContent = m[0];
   $('sub').textContent = m[1];
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.page===page));
-  // AI页关闭.app的padding-bottom让三段式布局能撑满
   document.querySelector('.app').style.paddingBottom = page==='ai' ? '0' : '';
 }
 
@@ -812,7 +800,6 @@ function planWarnHTML(amount, tagId, inBudget){
     msgs.push('这笔未纳入预算，会挤占其他计划。'); level=level==='danger'?'danger':'warn';
   }
   if(amount>Number(S.settings.quizAmount||25)) msgs.push('金额超过 '+money(S.settings.quizAmount||25)+'，建议确认前再想一下。');
-  const cls = level==='danger'?'danger':level==='warn'?'warn':'ok';
   const bg = level==='danger'?'#fef2f2':level==='warn'?'#fffbeb':'#ecfdf5';
   const col = level==='danger'?'#b91c1c':level==='warn'?'#b45309':'#047857';
   return `<div style="margin-top:10px;padding:10px 12px;border-radius:12px;background:${bg};color:${col};font-size:12.5px;line-height:1.6">${msgs.join(' ')||'在预算范围内，可以正常安排。'}</div>`;
@@ -1093,7 +1080,6 @@ function viewSetPanel(panel){
       · 你自己在计划卡片上点"我有点纠结"</p>
     </div>`;
   }
-  // data
   return `<div class="section-title"><h2>备份与清理</h2>${back}</div>
   <div class="card stack">
     <button class="btn" type="button" id="exportJson">导出完整备份 JSON</button>
@@ -1138,7 +1124,6 @@ function drawLineChart(canvasId, series){
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
   ctx.clearRect(0,0,w,h);
-
   const allVals = series.flatMap(s=>s.data);
   const max = Math.max(1, ...allVals);
   const days = series[0]?.data.length || 30;
@@ -1146,7 +1131,6 @@ function drawLineChart(canvasId, series){
   const plotW = w-padL-padR, plotH = h-padT-padB;
   const x = i => padL + (i/(days-1||1))*plotW;
   const y = v => padT + plotH - (v/max)*plotH;
-
   ctx.strokeStyle = '#eef0f2'; ctx.lineWidth = 1;
   ctx.fillStyle = '#9ca3af'; ctx.font = '9px -apple-system,sans-serif';
   for(let i=0;i<=3;i++){
@@ -1159,7 +1143,6 @@ function drawLineChart(canvasId, series){
   [1, Math.round(days/2), days].forEach(d=>{
     ctx.fillText(d+'日', x(d-1), h-6);
   });
-
   series.forEach(s=>{
     if(!s.data.some(v=>v>0)) return;
     ctx.strokeStyle = s.color; ctx.lineWidth = 2; ctx.lineJoin='round';
@@ -1168,7 +1151,6 @@ function drawLineChart(canvasId, series){
     ctx.stroke();
   });
 }
-
 
 function openQuickAdd(){
   const accOpts = S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)} ${money(a.balance)}</option>`).join('');
@@ -1250,11 +1232,9 @@ function render(){
   setChrome();
   const view = { home: viewHome, add: viewAdd, cal: viewCal, ai: viewAI, settings: viewSettings }[page];
   $('view').innerHTML = view();
-  // AI页：.main不需要额外padding，布局靠ai-page flex撑
   $('view').style.height = page==='ai' ? 'calc(100vh - var(--nav) - 56px)' : '';
   $('view').style.overflow = page==='ai' ? 'hidden' : '';
   bind();
-  // 进入AI页时滚动到底部
   if(page==='ai'){
     requestAnimationFrame(()=>{
       const box=$('chatBox'); if(box) box.scrollTop=box.scrollHeight;
@@ -1391,7 +1371,13 @@ function bind(){
 
   if(page==='ai'){
     $('ai_send').onclick = sendChat;
-    $('ai_input').addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); }});
+    const aiInput = $('ai_input');
+    aiInput.addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); }});
+    // 自动扩展高度，最多96px，超出内部滚动
+    aiInput.addEventListener('input', ()=>{
+      aiInput.style.height = '44px';
+      aiInput.style.height = Math.min(aiInput.scrollHeight, 96) + 'px';
+    });
     $('ai_plan').addEventListener('change', async e => {
       const id = e.target.value; if(!id) return;
       e.target.value = '';
@@ -1403,12 +1389,8 @@ function bind(){
       try{ await navigator.clipboard.writeText(m.text); toast('已复制'); }
       catch{ prompt('复制', m.text); }
     });
-    document.querySelectorAll('[data-split]').forEach(b => b.onclick=()=>{
-      splitContext(+b.dataset.split);
-    });
-    document.querySelectorAll('[data-retry]').forEach(b => b.onclick=()=>{
-      retryReply(+b.dataset.retry);
-    });
+    document.querySelectorAll('[data-split]').forEach(b => b.onclick=()=>{ splitContext(+b.dataset.split); });
+    document.querySelectorAll('[data-retry]').forEach(b => b.onclick=()=>{ retryReply(+b.dataset.retry); });
     document.querySelectorAll('[data-edit]').forEach(b => b.onclick=()=>{
       const s=curSession(); const m=s.chat[+b.dataset.edit]; if(!m) return;
       const t=prompt('编辑', m.text); if(t==null) return; m.text=t; save(); render();
@@ -1651,27 +1633,21 @@ function handleQuickAddURL(){
   const params = new URLSearchParams(location.search);
   const type = params.get('quickadd');
   if(type !== 'expense' && type !== 'income') return false;
-
   const amount = Number(params.get('amount') || 0);
   const note = (params.get('note') || '').slice(0, 60);
   const accParam = params.get('account') || '';
   const tagParam = params.get('tag') || '';
-
   history.replaceState(null, '', location.pathname);
-
   if(!(amount > 0)){
     renderQuickAddResult(false, '金额无效，没有记录任何内容。');
     return true;
   }
-
   let account = S.accounts.find(a => a.id === accParam || a.name === accParam) || S.accounts[0];
   if(!account){ renderQuickAddResult(false, '没有可用账户。'); return true; }
-
   let tagObj = null;
   if(type === 'expense'){
     tagObj = S.tags.find(t => t.id === tagParam || t.name === tagParam) || S.tags.find(t => t.id === 'other') || S.tags[0];
   }
-
   if(type === 'expense'){
     account.balance -= amount;
     S.txs.unshift({ id:uid(), type:'expense', amount, accountId:account.id, tagId:tagObj?.id, item:note||'快捷指令支出', date:today(), note, refunded:false });
@@ -1680,7 +1656,6 @@ function handleQuickAddURL(){
     S.txs.unshift({ id:uid(), type:'income', amount, accountId:account.id, item:note||'快捷指令收入', date:today(), note, refunded:false });
   }
   save();
-
   const label = type === 'expense' ? '支出' : '收入';
   renderQuickAddResult(true, `已记录 ${label} ${money(amount)}${note ? '，' + esc(note) : ''}（${esc(account.name)}）`);
   return true;
