@@ -473,10 +473,20 @@ async function replyAI(){
   s.chat.push({role:'assistant',text:'',at:Date.now(),streaming:true});let firstToken=true;
   try{
     const full=await callAI(hist,(partial)=>{
-      if(firstToken){stopThinking();firstToken=false;}
       s.chat[msgIndex].text=partial;
-      const box=$('chatBox');
-      if(box){const wrap=box.children[msgIndex];if(wrap){wrap.querySelector('.bubble').innerHTML=esc(partial)+'<span class="cursor-blink"></span>';}box.scrollTop=box.scrollHeight;}
+      // 只有当用户仍停留在这个对话的决策页时，才更新界面
+      const live=page==='ai'&&S.ui.curSession===s.id;
+      const box=live?$('chatBox'):null;
+      if(firstToken){
+        stopThinking();firstToken=false;
+        // 关键修复：第一个字到达时，先把 AI 气泡插入页面，后面才有东西可以逐字更新
+        if(box)box.insertAdjacentHTML('beforeend',bubble(s.chat[msgIndex],msgIndex,s));
+      }
+      if(box){
+        const wrap=box.children[msgIndex];
+        if(wrap){const bb=wrap.querySelector('.bubble');if(bb)bb.innerHTML=esc(partial)+'<span class="cursor-blink"></span>';}
+        box.scrollTop=box.scrollHeight;
+      }
     });
     s.chat[msgIndex].text=full||'（没有收到回复内容）';s.chat[msgIndex].streaming=false;
   }catch(e){stopThinking();s.chat[msgIndex].text='出错了：'+e.message;s.chat[msgIndex].streaming=false;}
@@ -579,11 +589,6 @@ function viewAdd(){
     <div id="a_warn"></div>
     <button class="btn block" type="button" id="btnPlan" style="margin-top:12px">生成计划</button>
     <p class="muted" style="margin:10px 0 0">不会立刻扣款。真正买了，再在首页点"已购买"。</p>
-  </div>
-  <div class="card">
-    <div class="section-title" style="margin:0 0 4px"><h2 style="font-size:14px">快捷</h2></div>
-    <button class="list-btn" type="button" id="btnIncome"><strong>记收入</strong><span>工资、红包</span></button>
-    <button class="list-btn" type="button" id="btnTransfer"><strong>账户互转</strong><span>不影响总资产</span></button>
   </div>
   <div class="card">
     <div class="section-title" style="margin:0 0 4px"><h2 style="font-size:14px">长期想法清单</h2><button class="btn sm line" type="button" id="btnAddLong">＋想法</button></div>
@@ -767,13 +772,22 @@ function viewSetPanel(panel){
   </div>`;
 }
 
+// 月度折线图：按「消费标签」分线，颜色取自标签设置里的颜色
 function openMonthChart(month){
   const[y,m]=month.split('-').map(Number);const days=new Date(y,m,0).getDate();
-  const dailyExp=Array(days).fill(0),dailyInc=Array(days).fill(0);
-  S.txs.forEach(t=>{if(!t.date.startsWith(month))return;const d=Number(t.date.slice(8,10))-1;if(t.type==='expense'&&!t.refunded)dailyExp[d]+=Number(t.amount);if(t.type==='income')dailyInc[d]+=Number(t.amount);});
-  openModal(`<div class="row"><h3>${month} 收支趋势</h3><button class="iconbtn" type="button" id="mc">${svgX()}</button></div><canvas id="monthChartCanvas" class="chart-modal-canvas"></canvas><div class="chart-legend"><span><i style="background:#0d9488"></i>支出</span><span><i style="background:#047857"></i>收入</span></div>`);
+  const map={};
+  S.txs.forEach(t=>{
+    if(t.type!=='expense'||t.refunded||!t.date.startsWith(month))return;
+    const tg=tag(t.tagId);const key=tg.id||'other';
+    if(!map[key])map[key]={label:tg.name,color:tg.color,data:Array(days).fill(0),total:0};
+    const d=Number(t.date.slice(8,10))-1;
+    map[key].data[d]+=Number(t.amount);map[key].total+=Number(t.amount);
+  });
+  const series=Object.values(map).sort((a,b)=>b.total-a.total);
+  const legend=series.map(s=>`<span><i style="background:${s.color}"></i>${esc(s.label)} ${money(s.total)}</span>`).join('');
+  openModal(`<div class="row"><h3>${month} 各标签支出</h3><button class="iconbtn" type="button" id="mc">${svgX()}</button></div>${series.length?`<canvas id="monthChartCanvas" class="chart-modal-canvas"></canvas><div class="chart-legend">${legend}</div>`:`<div class="empty">这个月还没有支出记录</div>`}`);
   $('mc').onclick=closeModal;
-  drawLineChart('monthChartCanvas',[{label:'支出',color:'#0d9488',data:dailyExp},{label:'收入',color:'#047857',data:dailyInc}]);
+  if(series.length)drawLineChart('monthChartCanvas',series);
 }
 function drawLineChart(canvasId,series){
   const canvas=$(canvasId);if(!canvas)return;
@@ -786,7 +800,13 @@ function drawLineChart(canvasId,series){
   ctx.strokeStyle='#eef0f2';ctx.lineWidth=1;ctx.fillStyle='#9ca3af';ctx.font='9px -apple-system,sans-serif';
   for(let i=0;i<=3;i++){const val=max/3*i;const yy=y(val);ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(w-padR,yy);ctx.stroke();ctx.fillText(Math.round(val),2,yy+3);}
   ctx.textAlign='center';[1,Math.round(days/2),days].forEach(d=>{ctx.fillText(d+'日',x(d-1),h-6);});
-  series.forEach(s=>{if(!s.data.some(v=>v>0))return;ctx.strokeStyle=s.color;ctx.lineWidth=2;ctx.lineJoin='round';ctx.beginPath();s.data.forEach((v,i)=>{i===0?ctx.moveTo(x(i),y(v)):ctx.lineTo(x(i),y(v));});ctx.stroke();});
+  series.forEach(s=>{
+    if(!s.data.some(v=>v>0))return;
+    ctx.strokeStyle=s.color;ctx.fillStyle=s.color;ctx.lineWidth=2;ctx.lineJoin='round';
+    ctx.beginPath();s.data.forEach((v,i)=>{i===0?ctx.moveTo(x(i),y(v)):ctx.lineTo(x(i),y(v));});ctx.stroke();
+    // 有支出的那天画一个小圆点，只花过一两次的标签也看得清
+    s.data.forEach((v,i)=>{if(v>0){ctx.beginPath();ctx.arc(x(i),y(v),2.5,0,Math.PI*2);ctx.fill();}});
+  });
 }
 
 function openQuickAdd(){
@@ -853,17 +873,6 @@ function bind(){
       if(!(amount>0)||!item)return toast('填写金额和内容');
       const p=createPlan({amount,item,tagId:$('a_tag').value,accountId:$('a_acc').value,date:$('a_date').value||today(),note:$('a_note').value.trim(),inBudget:$('a_inbudget').checked});
       toast(p.quiz?'已生成，建议先确认再买':'计划已生成');page='home';render();
-    };
-    $('btnIncome').onclick=()=>{
-      openModal(`<div class="row"><h3>记收入</h3><button class="btn sm line" type="button" id="mc">关闭</button></div><label class="field"><span>金额</span><input id="i_amt" type="number"></label><label class="field"><span>账户</span><select id="i_acc">${S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select></label><label class="field"><span>说明</span><input id="i_item" value="收入"></label><button class="btn block" type="button" id="i_ok">保存</button>`);
-      $('mc').onclick=closeModal;
-      $('i_ok').onclick=()=>{const amount=Number($('i_amt').value||0);if(!(amount>0))return toast('金额无效');const id=$('i_acc').value;const a=acc(id);a.balance+=amount;S.txs.unshift({id:uid(),type:'income',amount,accountId:id,item:$('i_item').value||'收入',date:today(),refunded:false});save();closeModal();toast('已记录');render();};
-    };
-    $('btnTransfer').onclick=()=>{
-      const opts=S.accounts.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('');
-      openModal(`<div class="row"><h3>账户互转</h3><button class="btn sm line" type="button" id="mc">关闭</button></div><p class="muted">转账不计收入或支出，不影响总资产，只改变各账户余额。</p><label class="field"><span>从</span><select id="t_from">${opts}</select></label><label class="field"><span>到</span><select id="t_to">${opts}</select></label><label class="field"><span>金额</span><input id="t_amt" type="number"></label><button class="btn block" type="button" id="t_ok">确认转账</button>`);
-      $('mc').onclick=closeModal;
-      $('t_ok').onclick=()=>{const from=$('t_from').value,to=$('t_to').value,amount=Number($('t_amt').value||0);if(from===to||!(amount>0))return toast('参数无效');acc(from).balance-=amount;acc(to).balance+=amount;S.txs.unshift({id:uid(),type:'transfer',amount,accountId:from,toAccountId:to,item:'转账到'+acc(to).name,date:today(),refunded:false});save();closeModal();toast('已转账');render();};
     };
     $('btnAddLong').onclick=()=>{
       openModal(`<div class="row"><h3>长期想法</h3><button class="btn sm line" type="button" id="mc">关闭</button></div><label class="field"><span>想法名称</span><input id="lg_name" placeholder="比如：新相机 / 换手机"></label><label class="field"><span>备注</span><textarea id="lg_note" placeholder="随便记点想法，不占预算"></textarea></label><button class="btn block" type="button" id="lg_ok">保存</button>`);
