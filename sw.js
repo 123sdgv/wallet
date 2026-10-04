@@ -1,4 +1,4 @@
-const CACHE = 'sober-wallet-v5';
+const CACHE = 'sober-wallet-v6';
 const ASSETS = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
