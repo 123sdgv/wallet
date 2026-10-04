@@ -272,7 +272,7 @@ $('mask').addEventListener('click',e=>{if(e.target.id==='mask')closeModal();});
 function totalAssets(){return S.accounts.reduce((a,b)=>a+Number(b.balance||0),0);}
 function savings(){return S.goals.reduce((a,b)=>a+Number(b.saved||0),0);}
 function free(){return totalAssets()-Number(S.settings.safe||0)-savings();}
-function budget(p=periodKey()){if(!S.budgets[p])S.budgets[p]={total:0,set:false,tagLimits:{}};return S.budgets[p];}
+function budget(p=periodKey()){if(!S.budgets[p])S.budgets[p]={total:0,set:false,tagLimits:{},accAlloc:{}};return S.budgets[p];}
 function spentTotal(p=periodKey()){return S.txs.filter(t=>t.type==='expense'&&!t.refunded&&periodKey(t.date)===p).reduce((a,b)=>a+Number(b.amount||0),0);}
 function spentByTag(tagId,p=periodKey()){return S.txs.filter(t=>t.type==='expense'&&!t.refunded&&t.tagId===tagId&&periodKey(t.date)===p).reduce((a,b)=>a+Number(b.amount||0),0);}
 function remain(p=periodKey()){const b=budget(p);return b.set?Number(b.total)-spentTotal(p):null;}
@@ -703,9 +703,7 @@ function viewSettings(){
   if(S.ui.setPanel)return viewSetPanel(S.ui.setPanel);
   return`<div class="card">
     <button class="list-btn" type="button" data-panel="accounts"><strong>账户</strong><span>${money(totalAssets())}</span></button>
-    <button class="list-btn" type="button" data-panel="budget"><strong>月度预算</strong><span>${periodName(periodKey())}</span></button>
     <button class="list-btn" type="button" data-panel="tags"><strong>消费标签</strong><span>${S.tags.length} 个</span></button>
-    <button class="list-btn" type="button" data-panel="goals"><strong>专项储蓄</strong><span>${money(savings())}</span></button>
   </div>
   <div class="card">
     <button class="list-btn" type="button" data-panel="model"><strong>模型 API</strong><span>${S.settings.modelOn?'已启用':'未启用'}</span></button>
@@ -717,22 +715,7 @@ function viewSettings(){
 function viewSetPanel(panel){
   const back=`<button class="btn sm line" type="button" id="setBack">返回</button>`;
   if(panel==='accounts')return`<div class="section-title"><h2>账户</h2>${back}</div><div class="card">${S.accounts.map(a=>`<div class="item row"><div><strong>${esc(a.name)}</strong><div class="muted">${KIND_LABEL[a.kind]||'自定义'} · ${money(a.balance)}</div></div><div style="display:flex;gap:6px"><button class="btn sm line" type="button" data-edit-acc="${a.id}">调整</button><button class="btn sm danger" type="button" data-del-acc="${a.id}">删除</button></div></div>`).join('')}<button class="btn block line" type="button" id="addAcc" style="margin-top:8px">新增账户</button></div>`;
-  if(panel==='budget'){
-    const b=budget();
-    return`<div class="section-title"><h2>月度预算</h2>${back}</div>
-    <div class="card">
-      <div class="muted" style="margin-bottom:10px">${periodName(periodKey())}（当前月份）</div>
-      <label class="field"><span>本月总预算</span><input id="b_total" type="number" value="${b.total||0}"></label>
-      <button class="btn block" type="button" id="saveBudget">保存</button>
-    </div>
-    <div class="section-title"><h2>按标签细分预算（可选）</h2></div>
-    <div class="card">
-      ${S.tags.map(t=>{const lim=b.tagLimits?.[t.id]||'';const sp=spentByTag(t.id);return`<div class="item"><div class="row"><span><span class="dot" style="background:${t.color}"></span>${esc(t.name)}</span><span class="muted">已用 ${money(sp)}</span></div><input data-tag-limit="${t.id}" type="number" placeholder="不限" value="${lim}" style="margin-top:8px"></div>`;}).join('')}
-      <button class="btn block" type="button" id="saveTagBudget" style="margin-top:8px">保存标签预算</button>
-    </div>`;
-  }
   if(panel==='tags')return`<div class="section-title"><h2>消费标签</h2>${back}</div><div class="card">${S.tags.map(t=>`<div class="item row"><div><strong><span class="dot" style="background:${t.color}"></span>${esc(t.name)}</strong><div class="muted">${t.over?'可超额':'限额'}${t.quiz?' · 建议确认':''}${t.cool?' · 冷静'+t.cool+'天':''}</div></div><div style="display:flex;gap:6px"><button class="btn sm line" type="button" data-edit-tag="${t.id}">编辑</button><button class="btn sm danger" type="button" data-del-tag="${t.id}">删除</button></div></div>`).join('')}<button class="btn block line" type="button" id="addTag" style="margin-top:8px">新增标签</button></div>`;
-  if(panel==='goals')return`<div class="section-title"><h2>专项储蓄</h2>${back}</div><div class="card">${S.goals.map(g=>`<div class="item"><div class="row"><strong>${esc(g.name)}</strong><span>${money(g.saved)} / ${money(g.target)}</span></div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn sm line" type="button" data-g-add="${g.id}">存入</button><button class="btn sm danger" type="button" data-g-del="${g.id}">删除</button></div></div>`).join('')||`<div class="empty">还没有储蓄目标</div>`}<button class="btn block line" type="button" id="addGoal" style="margin-top:8px">新建目标</button></div>`;
   if(panel==='model')return`<div class="section-title"><h2>模型 API</h2>${back}</div><div class="card">
     <div class="switch"><span>启用模型功能</span><input id="m_on" type="checkbox" ${S.settings.modelOn?'checked':''}></div>
     <label class="field"><span>Base URL</span><input id="m_url" value="${esc(S.api.baseURL)}"></label>
@@ -831,6 +814,8 @@ function accFree(a){return r2(Number(a.balance||0)-safeAllocOn(a.id)-goalsOn(a.i
 function safeUnassigned(){return r2(Number(S.settings.safe||0)-allocSum(S.safeAlloc))}
 function goalUnassigned(g){return r2(Number(g.saved||0)-allocSum(g.alloc))}
 function goalsUnassigned(){return r2(S.goals.reduce((a,g)=>a+goalUnassigned(g),0))}
+function budgetAllocOn(id,p=periodKey()){return Number((budget(p).accAlloc||{})[id]||0);}
+function budgetUnassigned(p=periodKey()){const b=budget(p);return r2(Number(b.total||0)-allocSum(b.accAlloc||{}));}
 
 // ---------- 给 AI 的财务快照：每次提问自动附上，不存进对话记录，不含 API Key 和对话内容 ----------
 const SNAPSHOT_INTRO='\n\n【用户当前的财务数据】\n以下内容由应用在每次提问时自动附上，是用户此刻在应用各页面里能看到的全部信息（对话框里的其他对话记录你不知道）。请以这份数据为准回答，不要编造这里没有的数字；需要的数据这里没有时，直接说没有。\n';
@@ -851,6 +836,7 @@ function buildSnapshot(){
   });
   const used=spentTotal();
   L.push('【本月预算】'+(b.set?'总预算 '+moneyS(b.total)+'，已花 '+moneyS(used)+'，剩余 '+moneyS(b.total-used):'总预算未设置，本月已花 '+moneyS(used)));
+  {const parts=S.accounts.filter(a=>budgetAllocOn(a.id)>0).map(a=>a.name+' '+moneyS(budgetAllocOn(a.id)));const bu=budgetUnassigned();if(Math.abs(bu)>=0.005)parts.push((bu>0?'未指定账户 ':'分配超出 ')+moneyS(Math.abs(bu)));L.push('预算来源账户：'+(parts.length?parts.join('，'):'未指定'));}
   S.tags.filter(t=>b.tagLimits&&b.tagLimits[t.id]).forEach(t=>{const lim=Number(b.tagLimits[t.id]);const sp=spentByTag(t.id);L.push('- 标签「'+t.name+'」预算 '+moneyS(lim)+'，已花 '+moneyS(sp)+'，剩余 '+moneyS(lim-sp));});
   const byTag=S.tags.map(t=>[t.name,spentByTag(t.id)]).filter(x=>x[1]>0);
   if(byTag.length)L.push('本月各标签已花：'+byTag.map(x=>x[0]+' '+moneyS(x[1])).join('，'));
@@ -957,33 +943,100 @@ function openSafePopup(){
 }
 
 // 专项储蓄：先选项目，再看/改这个项目的钱放在哪个账户
+function openBudgetPopup(){
+  const p=periodKey();const b=budget(p);
+  const page1=`
+    <p class="muted" style="margin:0 0 10px">本月预算 ${money(b.total||0)} 打算从哪些账户出，下面可以直接改。这只是你自己的安排，不会跟实际花销自动核对。</p>
+    ${allocRowsHTML(id=>budgetAllocOn(id,p))}
+    <button class="btn block" type="button" id="allocSave">保存分配</button>`;
+  const page2=`
+    <label class="field"><span>本月总预算</span><input id="bp_total" type="number" value="${b.total||0}"></label>
+    <div class="section-title" style="margin:4px 0 6px"><h2 style="font-size:13px">按标签</h2></div>
+    ${S.tags.map(t=>{
+      const sp=spentByTag(t.id,p);const lim=b.tagLimits?.[t.id];
+      return `<div class="item">
+        <div style="font-weight:600"><span class="dot" style="background:${t.color}"></span>${esc(t.name)}</div>
+        <div class="row" style="margin-top:4px;align-items:baseline">
+          <span class="muted">预算 ${lim?money(lim):'不限'}</span>
+          <span style="font-weight:700;font-size:16px">已花 ${money(sp)}</span>
+        </div>
+        <input data-tag-budget="${t.id}" type="number" placeholder="不限" value="${lim||''}" style="margin-top:8px">
+      </div>`;
+    }).join('')}
+    <button class="btn block" type="button" id="bp_save" style="margin-top:10px">保存预算</button>`;
+  openModal(`<div class="row"><h3>本月预算</h3><button class="iconbtn" type="button" id="mc">${svgX()}</button></div>
+    <div id="budgetPager" style="display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;margin:0 -16px">
+      <div style="flex:0 0 100%;min-width:100%;box-sizing:border-box;scroll-snap-align:start;padding:0 16px">${page1}</div>
+      <div style="flex:0 0 100%;min-width:100%;box-sizing:border-box;scroll-snap-align:start;padding:0 16px">${page2}</div>
+    </div>
+    <div style="display:flex;justify-content:center;gap:6px;margin-top:10px">
+      <button type="button" class="pgdot" data-pg="0" style="width:6px;height:6px;border-radius:999px;border:0;padding:0;background:var(--line)"></button>
+      <button type="button" class="pgdot" data-pg="1" style="width:6px;height:6px;border-radius:999px;border:0;padding:0;background:var(--brand)"></button>
+    </div>`);
+  $('mc').onclick=closeModal;
+  const pager=$('budgetPager');
+  const dots=document.querySelectorAll('.pgdot');
+  const syncDots=()=>{const idx=pager.scrollLeft>pager.clientWidth/2?1:0;dots.forEach((d,i)=>d.style.background=i===idx?'var(--brand)':'var(--line)');};
+  requestAnimationFrame(()=>{pager.scrollLeft=pager.clientWidth;syncDots();}); // 默认打开第二页（按标签）
+  pager.addEventListener('scroll',syncDots);
+  dots.forEach(d=>d.onclick=()=>pager.scrollTo({left:Number(d.dataset.pg)*pager.clientWidth,behavior:'smooth'}));
+  // 第一页：预算来源账户
+  wireAlloc(Number(b.total||0),id=>safeAllocOn(id)+goalsOn(id));
+  $('allocSave').onclick=()=>{
+    b.accAlloc=readAlloc();save();
+    const diff=r2(Number(b.total||0)-allocSum(b.accAlloc));
+    toast(Math.abs(diff)<0.005?'已保存':'已保存（合计和总预算还对不上）');
+  };
+  // 第二页：总预算 + 各标签预算
+  $('bp_save').onclick=()=>{
+    b.total=Number($('bp_total').value||0);b.set=true;
+    b.tagLimits=b.tagLimits||{};
+    document.querySelectorAll('[data-tag-budget]').forEach(inp=>{
+      const v=inp.value.trim();
+      if(v==='')delete b.tagLimits[inp.dataset.tagBudget];else b.tagLimits[inp.dataset.tagBudget]=Number(v);
+    });
+    save();closeModal();toast('已保存');render();
+  };
+}
+
 function openGoalsPopup(){
-  const head=`<div class="row"><h3>专项储蓄 ${money(savings())}</h3><button class="iconbtn" type="button" id="mc">${svgX()}</button></div>`;
-  if(!S.goals.length){
-    openModal(head+`<div class="empty">还没有专项项目<br>请先到「我的 → 专项储蓄」新建</div>`);
-    $('mc').onclick=closeModal;return;
-  }
+  const head=`<div class="row"><h3>专项储蓄 ${money(savings())}</h3><div style="display:flex;gap:6px;flex:0 0 auto"><button class="iconbtn" type="button" id="addGoalBtn">${svgPlus()}</button><button class="iconbtn" type="button" id="mc">${svgX()}</button></div></div>`;
   const rows=S.goals.map(g=>{
     const parts=S.accounts.filter(a=>goalAllocOn(g,a.id)>0).map(a=>esc(a.name)+' '+money(goalAllocOn(g,a.id)));
     const un=goalUnassigned(g);
     if(Math.abs(un)>=0.005)parts.push((un>0?'未指定账户 ':'分配超出 ')+money(Math.abs(un)));
     return `<button class="list-btn" type="button" data-goal="${g.id}"><div style="min-width:0"><strong>${esc(g.name)}</strong><div class="muted" style="margin-top:3px">${parts.join(' · ')||'还没有分配'}</div></div><span style="flex:0 0 auto;margin-left:10px">${money(g.saved)} / ${money(g.target)} ›</span></button>`;
   }).join('');
-  openModal(head+`<p class="muted" style="margin-bottom:6px">先选一个项目，再看它的钱放在哪些账户。</p><div>${rows}</div>`);
+  const body=S.goals.length?`<p class="muted" style="margin-bottom:6px">先选一个项目，再看它的钱放在哪些账户。</p><div>${rows}</div>`:`<div class="empty">还没有专项项目<br>点右上角 ＋ 新建</div>`;
+  openModal(head+body);
   $('mc').onclick=closeModal;
+  $('addGoalBtn').onclick=()=>{
+    const name=(prompt('专项名称')||'').trim();if(!name)return;
+    const target=Math.max(0,Number(prompt('目标金额','1000')||0));
+    S.goals.push({id:uid(),name,target,saved:0});save();openGoalsPopup();
+  };
   document.querySelectorAll('[data-goal]').forEach(b=>b.onclick=()=>openGoalDetail(b.dataset.goal));
 }
 function openGoalDetail(id){
   const g=S.goals.find(x=>x.id===id);if(!g)return openGoalsPopup();
   const other=aid=>safeAllocOn(aid)+goalsOn(aid)-goalAllocOn(g,aid);
   openModal(`<div class="row"><button class="btn sm line" type="button" id="goBack">‹ 返回</button><button class="iconbtn" type="button" id="mc">${svgX()}</button></div>
-    <h3 style="margin-top:10px">${esc(g.name)}　${money(g.saved)} / ${money(g.target)}</h3>
-    <p class="muted" style="margin-bottom:12px">这笔钱放在哪几个账户，下面可以直接改。已存总数不在这里改，要增加请到「我的 → 专项储蓄」点「存入」。</p>
+    <h3 style="margin-top:10px">${esc(g.name)}</h3>
+    <label class="field"><span>已存</span><input id="g_saved" type="number" min="0" value="${g.saved||0}"></label>
+    <label class="field"><span>目标金额</span><input id="g_target" type="number" min="0" value="${g.target||0}"></label>
+    <button class="btn block line" type="button" id="g_saveNum">保存金额</button>
+    <div class="section-title" style="margin:16px 0 6px"><h2 style="font-size:13px">这笔钱放在哪些账户</h2></div>
+    <p class="muted" style="margin-bottom:10px">下面可以直接改，已存总数在上面改。</p>
     ${allocRowsHTML(aid=>goalAllocOn(g,aid))}
-    <button class="btn block" type="button" id="allocSave">保存</button>
+    <button class="btn block" type="button" id="allocSave">保存分配</button>
     <button class="btn block danger" type="button" id="goalDone" style="margin-top:8px">已买掉，删除这个专项</button>`);
   $('mc').onclick=closeModal;
   $('goBack').onclick=()=>openGoalsPopup();
+  $('g_saveNum').onclick=()=>{
+    g.saved=Math.max(0,r2($('g_saved').value||0));
+    g.target=Math.max(0,r2($('g_target').value||0));
+    save();toast('已保存');render();openGoalDetail(id);
+  };
   wireAlloc(Number(g.saved||0),other);
   $('allocSave').onclick=()=>{
     g.alloc=readAlloc();save();
@@ -1052,7 +1105,7 @@ function render(){
 function bind(){
   document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{page=b.dataset.go;render();});
   if(page==='home'){
-    const gb=$('goBudget');if(gb)gb.onclick=()=>{page='settings';S.ui.setPanel='budget';save();render();};
+    const gb=$('goBudget');if(gb)gb.onclick=()=>openBudgetPopup();
     $('quickAddBtn').onclick=openQuickAdd;
     document.querySelectorAll('[data-metric]').forEach(b=>b.onclick=()=>openMetric(b.dataset.metric));
     document.querySelectorAll('[data-confirm]').forEach(b=>b.onclick=()=>{confirmPlan(b.dataset.confirm);render();});
@@ -1123,10 +1176,6 @@ function bindSettingsPanel(){
     });
     document.querySelectorAll('[data-del-acc]').forEach(b=>b.onclick=()=>{if(S.accounts.length<=1)return toast('至少保留一个账户');if(!confirm('确定删除这个账户吗？相关流水会显示未知账户。'))return;S.accounts=S.accounts.filter(a=>a.id!==b.dataset.delAcc);save();render();});
   }
-  if(p==='budget'){
-    $('saveBudget').onclick=()=>{const b=budget();b.total=Number($('b_total').value||0);b.set=true;save();toast('已保存');render();};
-    const sv=$('saveTagBudget');if(sv)sv.onclick=()=>{const b=budget();b.tagLimits=b.tagLimits||{};document.querySelectorAll('[data-tag-limit]').forEach(inp=>{const v=inp.value.trim();if(v==='')delete b.tagLimits[inp.dataset.tagLimit];else b.tagLimits[inp.dataset.tagLimit]=Number(v);});save();toast('已保存标签预算');render();};
-  }
   if(p==='tags'){
     $('addTag').onclick=()=>{
       const autoColor=nextTagColor();
@@ -1145,11 +1194,6 @@ function bindSettingsPanel(){
       S.txs.forEach(t=>{if(t.tagId===b.dataset.delTag)t.tagId=other.id;});S.plans.forEach(p=>{if(p.tagId===b.dataset.delTag)p.tagId=other.id;});
       S.tags=S.tags.filter(t=>t.id!==b.dataset.delTag);save();render();
     });
-  }
-  if(p==='goals'){
-    $('addGoal').onclick=()=>{const name=prompt('目标名称');if(!name)return;const target=Number(prompt('目标金额','1000')||0);S.goals.push({id:uid(),name,target,saved:0});save();render();};
-    document.querySelectorAll('[data-g-add]').forEach(b=>b.onclick=()=>{const g=S.goals.find(x=>x.id===b.dataset.gAdd);const n=Number(prompt('存入金额','100')||0);if(!(n>0))return;g.saved=Number(g.saved)+n;save();render();});
-    document.querySelectorAll('[data-g-del]').forEach(b=>b.onclick=()=>{if(!confirm('确定删除这个储蓄目标吗？'))return;S.goals=S.goals.filter(x=>x.id!==b.dataset.gDel);save();render();});
   }
   if(p==='model'){
     $('saveModel').onclick=()=>{S.settings.modelOn=$('m_on').checked;S.api.baseURL=$('m_url').value.trim();S.api.apiKey=$('m_key').value.trim();S.api.model=$('m_model').value;S.api.timeout=Number($('m_timeout').value||30000);save();toast('已保存');};
