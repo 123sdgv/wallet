@@ -1,5 +1,6 @@
-}const CACHE = 'sober-wallet-v9';
-const ASSETS = ['./index.html', './manifest.json'];
+// 网络优先：有网时总是拿最新版本并顺手更新缓存；没网时用缓存兜底
+const CACHE = 'sober-wallet-v10';
+const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
@@ -14,17 +15,18 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
+  const req = e.request;
+  if (req.method !== 'GET' || !req.url.startsWith(self.location.origin)) return;
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      const network = fetch(e.request).then(res => {
-        if (res && res.status === 200 && e.request.url.startsWith(self.location.origin)) {
-          const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
-        }
-        return res;
-      }).catch(() => cached);
-      return cached || network;
-    })
+    fetch(req, { cache: 'no-store' }).then(res => {
+      // 带参数的地址（如快捷指令 ?quickadd=）不进缓存，免得越存越多
+      if (res && res.status === 200 && !new URL(req.url).search) {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(req, copy));
+      }
+      return res;
+    }).catch(() =>
+      caches.match(req, { ignoreSearch: true }).then(r => r || (req.mode === 'navigate' ? caches.match('./index.html') : Response.error()))
+    )
   );
-})
+});
