@@ -8,6 +8,16 @@ function viewHome() {
   const used = spentTotal();
   const off = offBudgetTotal();
   const tot = Number(b.total || 0);
+  const cap = budgetCap();
+
+  // 本月还能花 → 花超预算变「超额 ¥多出来的」→ 花超上限（这个月一共能花的钱）变「超限 ¥多出来的」
+  // 没设预算的标签花的钱也算在已花里
+  let headLabel = '本月还能花', headValue = b.set ? money(left) : '未设置', headRed = false;
+  if (used > cap + 0.004) {
+    headLabel = '超限'; headValue = money(used - cap); headRed = true;
+  } else if (b.set && used > tot + 0.004) {
+    headLabel = '超额'; headValue = money(used - tot); headRed = true;
+  }
 
   // 预算条：按标签分段，只算预算内
   const segs = S.tags
@@ -36,7 +46,7 @@ function viewHome() {
     </div>
     <div style="margin-top:14px">
       <div class="row">
-        <div style="font-size:13px">本月还能花<b style="font-size:22px;margin-left:6px;color:${left != null && left < 0 ? 'var(--danger)' : '#0f766e'}">${b.set ? money(left) : '未设置'}</b></div>
+        <div style="font-size:13px">${headLabel}<b style="font-size:22px;margin-left:6px;color:${headRed ? 'var(--danger)' : '#0f766e'}">${headValue}</b></div>
         <button class="iconbtn" type="button" id="goBudget" style="color:var(--brand)" aria-label="查看预算">${svgEye()}</button>
       </div>
       ${bar}

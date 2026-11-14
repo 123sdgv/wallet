@@ -54,9 +54,19 @@ function applyTx(t, sign = 1) {
 }
 
 // ---------- 预算 ----------
+// 总预算不能手动改：等于各标签预算加起来；一个标签都没设就是「未设置」
 function budget(p = periodKey()) {
   if (!S.budgets[p]) S.budgets[p] = { total: 0, set: false, tagLimits: {} };
-  return S.budgets[p];
+  const b = S.budgets[p];
+  b.tagLimits = b.tagLimits || {};
+  b.total = r2(Object.values(b.tagLimits).reduce((s, v) => s + Number(v || 0), 0));
+  b.set = b.total > 0;
+  return b;
+}
+
+// 本月上限：现在可安排的钱 + 本月已花（也就是这个月一共能花的钱）
+function budgetCap(p = periodKey()) {
+  return Math.max(0, r2(free() + spentTotal(p)));
 }
 
 // 本月已花（只算预算内）
