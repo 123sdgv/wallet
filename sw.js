@@ -1,5 +1,5 @@
 // 网络优先：有网时总是拿最新版本并顺手更新缓存；没网时用缓存兜底
-const CACHE = 'sober-wallet-v15';
+const CACHE = 'sober-wallet-v16';
 const ASSETS = [
   './', './index.html', './manifest.json', './icon-192.png',
   './css/style.css',

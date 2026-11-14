@@ -150,16 +150,19 @@ function bindTagPanel() {
     });
   });
 
-  // 改颜色：拖动时圆点跟着变，关掉色轮时保存
+  // 改颜色：色轮开着时随便点，圆点跟着变、颜色随时存下；
+  // 这里不重新渲染页面——重新渲染会把色轮顶掉（以前点一下颜色色轮就关了就是这个原因）。
+  // 关掉色轮后，最后选的那个颜色就是这个标签的颜色。
   document.querySelectorAll('[data-color-tag]').forEach(input => {
     const t = S.tags.find(x => x.id === input.dataset.colorTag);
     input.onclick = e => { if (guard(input)) e.preventDefault(); };
-    input.addEventListener('input', () => {
+    const apply = () => {
       input.parentElement.style.background = input.value;
       t.color = input.value;
       save();
-    });
-    input.addEventListener('change', () => { t.color = input.value; save(); render(); });
+    };
+    input.addEventListener('input', apply);
+    input.addEventListener('change', apply);
   });
 
   document.querySelectorAll('[data-del-tag]').forEach(b => b.onclick = () => deleteTag(b.dataset.delTag));

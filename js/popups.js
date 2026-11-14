@@ -153,19 +153,18 @@ function openBudgetPopup() {
   const b = budget(p);
   b.tagLimits = b.tagLimits || {};
   const used = spentTotal(p);
-  const off = offBudgetTotal(p);
   const tot = Number(b.total || 0);
-  const cap = Math.max(0, r2(free() + used));
+  const cap = budgetCap(p);
   const over = b.set && used > tot;
 
+  // 本月总预算 = 各标签预算加起来，这里只看、不能改
   const pct = Math.min(100, Math.max(0, used / Math.max(tot, 0.01) * 100));
   const barCls = used > tot ? 'danger' : used >= tot * 0.85 ? 'warn' : '';
-  const head = `<button type="button" class="list-btn" style="display:block" data-total>
-    <div class="row"><strong>本月总预算</strong><b style="color:var(--text);font-size:17px">${b.set ? money(tot) : '未设置'} ›</b></div>
+  const head = `<div class="list-btn" style="display:block">
+    <div class="row"><strong>本月总预算</strong><b style="color:var(--text);font-size:17px">${b.set ? money(tot) : '未设置'}</b></div>
     ${b.set ? `<div class="progress"><i class="${barCls}" style="width:${pct}%"></i></div>` : ''}
     <div class="muted" style="margin-top:6px">已花 ${money(used)}${over ? ' · 超 ' + money(used - tot) : ''} · 上限 ${money(cap)}</div>
-    ${off > 0.004 ? `<div class="muted" style="margin-top:2px">预算外 ${money(off)} 不计入</div>` : ''}
-  </button>`;
+  </div>`;
 
   const C = 2 * Math.PI * 80;
   const ring = t => {
@@ -178,7 +177,7 @@ function openBudgetPopup() {
       ? `<div style="color:#ef4444;font-size:24px;font-weight:800">超 ${money(sp - l)}</div><div class="muted">已花 ${money(sp)} / ${money(l)}</div>`
       : l > 0
         ? `<div style="font-size:24px;font-weight:800">剩 ${money(l - sp)}</div><div class="muted">已花 ${money(sp)} / ${money(l)}</div>`
-        : `<div style="font-size:24px;font-weight:800">${money(sp)}</div><div class="muted">未设预算</div>`;
+        : `<div style="font-size:24px;font-weight:800">${money(sp)}</div>`;
     const arc = frac > 0 || isOver
       ? `<circle cx="100" cy="100" r="80" fill="none" stroke="${col}" stroke-width="16" stroke-linecap="round" stroke-dasharray="${(isOver ? 1 : frac) * C} ${C}" transform="rotate(-90 100 100)"/>`
       : '';
@@ -209,38 +208,17 @@ function openBudgetPopup() {
     if (pg) pg.scrollLeft = idx * pg.clientWidth;
   };
 
-  document.querySelector('[data-total]').onclick = () => {
-    const idx = pageIndex();
-    miniForm({
-      title: '本月总预算',
-      note: '不能超过 ' + money(cap),
-      fields: [{ key: 'v', type: 'number', value: b.total || '' }],
-      onOk: o => {
-        const v = Math.max(0, Number(o.v || 0));
-        if (v > cap + 0.004) { toast('预算不能超过可安排上限 ' + money(cap)); return false; }
-        b.total = v;
-        b.set = true;
-        save();
-        render();
-        reopen(idx);
-      },
-    });
-  };
-
+  // 点标签的圆环：改这个标签的预算（清空 = 不设），总预算跟着自动重算；超过上限也照样保存
   document.querySelectorAll('[data-tl]').forEach(btn => btn.onclick = () => {
     const tid = btn.dataset.tl;
     const idx = pageIndex();
     miniForm({
       title: '「' + tag(tid).name + '」本月预算',
-      note: '留空表示不限',
       fields: [{ key: 'v', type: 'number', value: b.tagLimits[tid] != null ? b.tagLimits[tid] : '' }],
       onOk: o => {
         const v = String(o.v).trim();
-        if (v !== '' && b.set && Number(v) > Number(b.total) + 0.004) {
-          toast('不能超过本月总预算 ' + money(b.total));
-          return false;
-        }
-        if (v === '') delete b.tagLimits[tid]; else b.tagLimits[tid] = Number(v);
+        if (v === '') delete b.tagLimits[tid]; else b.tagLimits[tid] = Math.max(0, r2(v));
+        budget(p);
         save();
         render();
         reopen(idx);

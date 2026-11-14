@@ -33,12 +33,12 @@ function viewCal() {
 
   // 下面的流水列表（全部显示，不再截断）
   const dayFilter = S.ui.calDay;
-  const f = S.ui.calFilter || null;
+  // 点某天：只看那天；再点同一天：回到整月
   const base = (dayFilter ? S.txs.filter(t => t.date === dayFilter) : monTxs).slice().sort(cmpTx);
-  const income = f === 'expense' ? [] : base.filter(t => t.type === 'income');
-  const expense = f === 'income' ? [] : base.filter(t => t.type === 'expense');
-  const transfer = f ? [] : base.filter(t => t.type === 'transfer');
-  const label = (txt, color, first) => f ? '' : `<div class="muted" style="margin:${first ? '0 0 4px' : '10px 0 4px'};color:${color}">${txt}</div>`;
+  const income = base.filter(t => t.type === 'income');
+  const expense = base.filter(t => t.type === 'expense');
+  const transfer = base.filter(t => t.type === 'transfer');
+  const label = (txt, color, first) => `<div class="muted" style="margin:${first ? '0 0 4px' : '10px 0 4px'};color:${color}">${txt}</div>`;
   const total = income.length + expense.length + transfer.length;
 
   return `
@@ -56,14 +56,7 @@ function viewCal() {
       ${['日', '一', '二', '三', '四', '五', '六'].map(x => `<div class="hd">${x}</div>`).join('')}${cells}
     </div>
   </div>
-  <div class="section-title">
-    <div style="display:flex;align-items:baseline;gap:12px">
-      <h2>${dayFilter || m + '月流水'}</h2>
-      <button type="button" class="fl inc ${f === 'income' ? 'on' : f ? 'off' : ''}" data-fl="income">收入</button>
-      <button type="button" class="fl exp ${f === 'expense' ? 'on' : f ? 'off' : ''}" data-fl="expense">支出</button>
-    </div>
-    ${dayFilter ? '<button class="lnk" type="button" id="clearDay">看全月</button>' : ''}
-  </div>
+  <div class="section-title"><h2>${dayFilter || m + '月流水'}</h2></div>
   <div class="card" id="dayList">
     ${income.length ? label('收入', '#047857', true) + income.map(txLine).join('') : ''}
     ${expense.length ? label('支出', '#b91c1c', !income.length) + expense.map(txLine).join('') : ''}
@@ -118,13 +111,6 @@ function bindCal() {
   $('monthChartBtn').onclick = () => openMonthChart(S.ui.month || ym(new Date()));
   document.querySelectorAll('[data-day]').forEach(b => b.onclick = () => {
     S.ui.calDay = S.ui.calDay === b.dataset.day ? null : b.dataset.day;
-    save();
-    render();
-  });
-  const cd = $('clearDay');
-  if (cd) cd.onclick = () => { S.ui.calDay = null; save(); render(); };
-  document.querySelectorAll('[data-fl]').forEach(b => b.onclick = () => {
-    S.ui.calFilter = S.ui.calFilter === b.dataset.fl ? null : b.dataset.fl;
     save();
     render();
   });
