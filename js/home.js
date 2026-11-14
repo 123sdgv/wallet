@@ -34,12 +34,11 @@ function viewHome() {
       <button type="button" class="metric" data-metric="safe"><span>安全余额</span><b>${money(S.settings.safe)}</b></button>
       <button type="button" class="metric" data-metric="savings"><span>专项储蓄</span><b>${money(savings())}</b></button>
     </div>
-    <div style="margin-top:16px">
+    <div style="margin-top:14px">
       <div class="row">
-        <span class="muted">${periodName(periodKey())}预算</span>
-        <button class="btn sm ghost" type="button" id="goBudget">查看</button>
+        <div style="font-size:13px">本月还能花<b style="font-size:22px;margin-left:6px;color:${left != null && left < 0 ? 'var(--danger)' : '#0f766e'}">${b.set ? money(left) : '未设置'}</b></div>
+        <button class="iconbtn" type="button" id="goBudget" style="color:var(--brand)" aria-label="查看预算">${svgEye()}</button>
       </div>
-      <div style="margin-top:8px;font-size:13px">本月还能花<b style="font-size:22px;margin-left:6px;color:${left != null && left < 0 ? 'var(--danger)' : '#0f766e'}">${b.set ? money(left) : '未设置'}</b></div>
       ${bar}
     </div>
   </div>
@@ -47,29 +46,32 @@ function viewHome() {
   <div class="card${pending.length ? ' list-card' : ''}" id="planList">${pending.length ? pending.map(planItem).join('') : '<div class="empty">没有消费计划</div>'}</div>`;
 }
 
-// 一条消费计划：只显示名字和金额；左滑出现「完成」（黄）和「删除」（红）
+// 一条消费计划：名字、金额、✅（买了，入账）；左滑出现删除
 function planItem(p) {
   const t = tag(p.tagId);
   return swipeRow(`<div class="row">
     <div style="min-width:0;font-weight:600"><span class="dot" style="background:${t.color}"></span>${esc(p.item)}</div>
-    <b style="flex:0 0 auto">${money(p.amount)}</b>
-  </div>`, [
-    { attr: `data-done-plan="${p.id}"`, text: '完成', kind: 'edit' },
-    { attr: `data-del-plan="${p.id}"` },
-  ]);
+    <div style="display:flex;align-items:center;gap:2px;flex:0 0 auto">
+      <b style="margin-right:4px">${money(p.amount)}</b>
+      <button class="iconbtn" type="button" data-done-plan="${p.id}" aria-label="买了，入账">${svgCheck()}</button>
+    </div>
+  </div>`, [{ attr: `data-del-plan="${p.id}"` }], 'padding:16px 0');
 }
 
 function bindHome() {
   $('goBudget').onclick = () => openBudgetPopup();
   document.querySelectorAll('[data-metric]').forEach(b => b.onclick = () => openMetric(b.dataset.metric));
-  bindSwipe($('planList'));
+  const guard = bindSwipe($('planList'));
   document.querySelectorAll('[data-del-plan]').forEach(b => b.onclick = () => {
     const p = S.plans.find(x => x.id === b.dataset.delPlan);
     if (p && !confirm(`删除计划「${p.item}」？`)) return;
     deletePlan(b.dataset.delPlan);
     render();
   });
-  document.querySelectorAll('[data-done-plan]').forEach(b => b.onclick = () => completePlan(b.dataset.donePlan));
+  document.querySelectorAll('[data-done-plan]').forEach(b => b.onclick = () => {
+    if (guard(b)) return;
+    completePlan(b.dataset.donePlan);
+  });
 }
 
 // ---------- 消费计划 ----------

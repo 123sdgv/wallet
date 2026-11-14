@@ -1,6 +1,6 @@
 // ============================================================
 // memo.js — 资金备忘：纯文字的小备忘录
-// 列表每条显示第一行；左滑出现「编辑」（黄）和「删除」（红）
+// 列表每条显示第一行；点一下进编辑页，左滑出现删除
 // 编辑页右上角：没改动时是圆圈（点了直接退出），改动后变成对勾（点了保存并退出）
 // 只是文字，不影响任何金额
 // ============================================================
@@ -11,10 +11,9 @@ const svgCircleCheck = () => `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r
 function viewMemo(back) {
   const rows = S.memos.map(m => {
     const first = esc((m.text || '').split('\n')[0]);
-    return swipeRow(`<div class="memo-line">${first}</div>`, [
-      { attr: `data-edit-memo="${m.id}"`, text: '编辑', kind: 'edit' },
+    return swipeRow(`<div class="memo-line tappable" style="padding:11px 0" data-edit-memo="${m.id}">${first}</div>`, [
       { attr: `data-del-memo="${m.id}"` },
-    ]);
+    ], 'padding:0');
   }).join('');
   return `<div class="section-title"><h2>资金备忘</h2>${back}</div>
   <div class="card list-card">
@@ -24,9 +23,11 @@ function viewMemo(back) {
 }
 
 function bindMemo() {
-  bindSwipe($('view'));
+  const guard = bindSwipe($('view'));
   $('addMemo').onclick = () => openMemoPage(null);
+  // 点一下直接进编辑页（刚滑过 / 已滑开时只收回，不打开）
   document.querySelectorAll('[data-edit-memo]').forEach(b => b.onclick = () => {
+    if (guard(b)) return;
     openMemoPage(S.memos.find(m => m.id === b.dataset.editMemo));
   });
   document.querySelectorAll('[data-del-memo]').forEach(b => b.onclick = () => {
