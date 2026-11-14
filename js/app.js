@@ -18,8 +18,8 @@ const NAV = [
   ['page', 'settings', '我的', '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>'],
 ];
 $('nav').innerHTML = NAV.map(([kind, key, name, icon]) => kind === 'act'
-  ? `<button type="button" class="plus" data-act="${key}" aria-label="${name}"><i><svg ${SV}>${icon}</svg></i><span>${name}</span></button>`
-  : `<button type="button" data-page="${key}"><svg ${SV}>${icon}</svg><span>${name}</span></button>`).join('');
+  ? `<button type="button" class="plus" data-act="${key}" aria-label="${name}"><i><svg ${SV}>${icon}</svg></i></button>`
+  : `<button type="button" data-page="${key}" aria-label="${name}"><svg ${SV}>${icon}</svg></button>`).join('');
 
 $('nav').addEventListener('click', e => {
   if (e.target.closest('button[data-act]')) {
