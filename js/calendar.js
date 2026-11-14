@@ -50,7 +50,7 @@ function viewCal() {
     </div>
     <div class="hero" style="margin-top:6px">
       <div class="metric"><span>${m}月收入</span><b style="color:#047857">${money(monIncome)}</b></div>
-      <div class="metric"><span>${m}月支出</span><b style="color:#b91c1c">${money(monExpense)}</b>${monOff > 0.004 ? `<small>含预算外 ${money(monOff)}</small>` : ''}</div>
+      <div class="metric"><span>${m}月支出</span><b style="color:#b91c1c">${money(monExpense)}</b>${monOff > 0.004 ? `<small>${money(monOff)}</small>` : ''}</div>
     </div>
     <div class="cal" style="margin-top:12px">
       ${['日', '一', '二', '三', '四', '五', '六'].map(x => `<div class="hd">${x}</div>`).join('')}${cells}

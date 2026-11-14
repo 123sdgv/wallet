@@ -21,11 +21,8 @@ function viewHome() {
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:8px">
       ${segs.slice(0, 4).map(x => `<span class="muted"><span class="dot" style="background:${x[0].color}"></span>${esc(x[0].name)} ${money(x[1])}</span>`).join('')}
-      <span class="muted">已花 ${money(used)} / ${money(tot)}</span>
+      <span class="muted">已花 ${money(used)} / ${money(tot)}${off > 0.004 ? ` // ${money(off)}` : ''}</span>
     </div>` : '';
-  const offLine = off > 0.004
-    ? `<div class="muted" style="margin-top:6px">另有预算外支出 ${money(off)}，不占预算</div>`
-    : '';
 
   const pending = S.plans.filter(p => ['open', 'cooldown', 'delay'].includes(p.status));
 
@@ -44,31 +41,28 @@ function viewHome() {
       </div>
       <div style="margin-top:8px;font-size:13px">本月还能花<b style="font-size:22px;margin-left:6px;color:${left != null && left < 0 ? 'var(--danger)' : '#0f766e'}">${b.set ? money(left) : '未设置'}</b></div>
       ${bar}
-      ${offLine}
     </div>
   </div>
   <div class="section-title"><h2>消费计划</h2></div>
-  <div class="card">${pending.length ? pending.map(planItem).join('') : '<div class="empty">没有消费计划</div>'}</div>`;
+  <div class="card${pending.length ? ' list-card' : ''}" id="planList">${pending.length ? pending.map(planItem).join('') : '<div class="empty">没有消费计划</div>'}</div>`;
 }
 
+// 一条消费计划：只显示名字和金额；左滑出现「完成」（黄）和「删除」（红）
 function planItem(p) {
   const t = tag(p.tagId);
-  return `<div class="item"><div class="row">
-    <div style="min-width:0">
-      <div style="font-weight:600"><span class="dot" style="background:${t.color}"></span>${esc(p.item)}</div>
-      <div class="muted">${esc(t.name)} · ${p.date}${p.inBudget === false ? ' · 未纳入预算' : ''}</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:2px;flex:0 0 auto">
-      <b style="margin-right:4px">${money(p.amount)}</b>
-      <button class="iconbtn" type="button" data-done-plan="${p.id}" aria-label="买了，入账">${svgCheck()}</button>
-      <button class="iconbtn danger" type="button" data-del-plan="${p.id}" aria-label="删除计划">${svgDel()}</button>
-    </div>
-  </div></div>`;
+  return swipeRow(`<div class="row">
+    <div style="min-width:0;font-weight:600"><span class="dot" style="background:${t.color}"></span>${esc(p.item)}</div>
+    <b style="flex:0 0 auto">${money(p.amount)}</b>
+  </div>`, [
+    { attr: `data-done-plan="${p.id}"`, text: '完成', kind: 'edit' },
+    { attr: `data-del-plan="${p.id}"` },
+  ]);
 }
 
 function bindHome() {
   $('goBudget').onclick = () => openBudgetPopup();
   document.querySelectorAll('[data-metric]').forEach(b => b.onclick = () => openMetric(b.dataset.metric));
+  bindSwipe($('planList'));
   document.querySelectorAll('[data-del-plan]').forEach(b => b.onclick = () => {
     const p = S.plans.find(x => x.id === b.dataset.delPlan);
     if (p && !confirm(`删除计划「${p.item}」？`)) return;
@@ -110,13 +104,12 @@ function completePlan(id) {
   const def = acc(p.accountId) || S.accounts[0];
   miniForm({
     title: '买了「' + p.item + '」',
-    note: '记一笔支出，并从消费计划里移除',
     okText: '入账',
     fields: [
       { key: 'v', label: '实际金额', type: 'number', value: p.amount },
       { key: 'acc', label: '付款账户', type: 'select', value: def?.id, options: S.accounts.map(a => [a.id, a.name]) },
       { key: 'date', label: '日期', type: 'date', value: today() },
-      { key: 'budget', label: '预算', type: 'select', value: p.inBudget === false ? '0' : '1', options: [['1', '计入本月预算'], ['0', '预算外（不占预算）']] },
+      { key: 'budget', label: '计入本月预算', type: 'switch', value: p.inBudget !== false },
     ],
     onOk: o => {
       const amount = r2(o.v || 0);
@@ -135,7 +128,7 @@ function completePlan(id) {
         note: p.note || '',
         refunded: false,
       };
-      if (o.budget === '0') tx.noBudget = true;
+      if (!o.budget) tx.noBudget = true;
       applyTx(tx, 1);
       S.txs.unshift(tx);
       S.plans = S.plans.filter(x => x.id !== id);
