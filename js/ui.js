@@ -38,7 +38,8 @@ const svgPlus = () => `<svg ${SV}><path d="M12 5v14M5 12h14"/></svg>`;
 const svgX = () => `<svg ${SV}><path d="M18 6L6 18M6 6l12 12"/></svg>`;
 const svgBack = () => `<svg ${SV}><path d="M15 18l-6-6 6-6"/></svg>`;
 const svgNext = () => `<svg ${SV}><path d="M9 18l6-6-6-6"/></svg>`;
-const svgChartIcon = () => `<svg ${SV} style="width:14px;height:14px"><path d="M3 3v18h18"/><path d="M18 9l-5 5-3-3-4 4"/></svg>`;
+const svgEye = () => `<svg ${SV}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const svgChartIcon =() => `<svg ${SV} style="width:14px;height:14px"><path d="M3 3v18h18"/><path d="M18 9l-5 5-3-3-4 4"/></svg>`;
 const closeBtn = () => `<button class="ib" type="button" id="mc" aria-label="关闭">${svgX()}</button>`;
 
 // 彩色小标签
@@ -133,11 +134,15 @@ function miniForm({ title, note, fields, okText = '确定', onOk }) {
 }
 
 // ---------- 左滑出现按钮 ----------
-// swipeRow(内容HTML, [{ attr: 'data-del-tx="xx"', text: '删除' }], 内容层样式)
+// swipeRow(内容HTML, [{ attr: 'data-del-tx="xx"', text: '取出' }], 内容层样式)
 // 按钮默认红色；kind: 'edit' 是黄色。按钮贴在内容右侧外面，跟内容一起滑；没滑开时隐藏。
+// 不写 text 的就是删除：窄一点的红块，中间一个白色垃圾桶，不写字
 const SWIPE_BTN_W = 72;
+const SWIPE_DEL_W = 56;
 function swipeRow(inner, actions, innerStyle = '') {
-  const btns = actions.map(a => `<button class="swipe-del${a.kind === 'edit' ? ' edit' : ''}" type="button" ${a.attr}>${a.text || '删除'}</button>`).join('');
+  const btns = actions.map(a => a.text
+    ? `<button class="swipe-del${a.kind === 'edit' ? ' edit' : ''}" type="button" ${a.attr}>${a.text}</button>`
+    : `<button class="swipe-del icon" type="button" ${a.attr} aria-label="删除">${svgDel()}</button>`).join('');
   return `<div class="swipe"><div class="swipe-in"${innerStyle ? ` style="${innerStyle}"` : ''}>${inner}<div class="swipe-acts">${btns}</div></div></div>`;
 }
 
@@ -164,7 +169,8 @@ function bindSwipe(root) {
   const closeAll = except => rows.forEach(r => { if (r !== except && r._x) setX(r, 0); });
 
   rows.forEach(r => {
-    const W = r.querySelectorAll('.swipe-acts button').length * SWIPE_BTN_W;
+    const W = [...r.querySelectorAll('.swipe-acts button')]
+      .reduce((s, b) => s + (b.classList.contains('icon') ? SWIPE_DEL_W : SWIPE_BTN_W), 0);
     let sx = 0, sy = 0, base = 0, dir = null;
     r._x = 0;
     r.addEventListener('touchstart', e => {
