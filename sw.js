@@ -1,10 +1,10 @@
 // 网络优先：有网时总是拿最新版本并顺手更新缓存；没网时用缓存兜底
-const CACHE = 'sober-wallet-v11';
+const CACHE = 'sober-wallet-v12';
 const ASSETS = [
   './', './index.html', './manifest.json', './icon-192.png',
   './css/style.css',
   './js/store.js', './js/calc.js', './js/ui.js', './js/home.js', './js/record.js',
-  './js/calendar.js', './js/popups.js', './js/summary.js', './js/settings.js', './js/app.js',
+  './js/calendar.js', './js/popups.js', './js/summary.js', './js/memo.js', './js/settings.js', './js/app.js',
 ];
 
 self.addEventListener('install', e => {

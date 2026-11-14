@@ -41,6 +41,39 @@ const svgNext = () => `<svg ${SV}><path d="M9 18l6-6-6-6"/></svg>`;
 const svgChartIcon = () => `<svg ${SV} style="width:14px;height:14px"><path d="M3 3v18h18"/><path d="M18 9l-5 5-3-3-4 4"/></svg>`;
 const closeBtn = () => `<button class="ib" type="button" id="mc" aria-label="关闭">${svgX()}</button>`;
 
+// 列表图标（线条风格）
+const ICONS = {
+  tag: '<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/>',
+  chart: '<path d="M21.2 15.9A10 10 0 1 1 8 2.8"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>',
+  memo: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>',
+  data: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.7-4 3-9 3s-9-1.3-9-3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
+  table: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/>',
+  trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>',
+  reset: '<path d="M1 4v6h6"/><path d="M3.5 15a9 9 0 1 0 2.1-9.4L1 10"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+};
+const icon = name => `<svg ${SV}>${ICONS[name] || ''}</svg>`;
+
+// 分组列表里的一行：左边彩色图标，中间标题 + 小字，右边箭头或数字
+// cell({ attrs:'data-panel="tags"', icon:'tag', color:'#8b5cf6', title, sub, end, danger })
+function cell({ attrs = '', icon: ic, color = '#94a3b8', badge, title, sub = '', end = '', chevron = true, danger = false, tag: el = 'button' }) {
+  // 徽章里的字多于一个（比如 HK$）就缩小一点
+  const long = String(badge ?? '').replace(/&[^;]+;/g, 'x').length > 1;
+  const lead = badge != null
+    ? `<span class="ico round" style="background:${color}${long ? ';font-size:11.5px' : ''}">${badge}</span>`
+    : `<span class="ico" style="background:${color}">${icon(ic)}</span>`;
+  const btnType = el === 'button' ? ' type="button"' : '';
+  return `<${el}${btnType} class="cell${danger ? ' danger' : ''}" ${attrs}>
+    ${lead}
+    <span class="txt"><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</span>
+    ${end ? `<span class="end">${end}</span>` : ''}
+    ${chevron ? `<span class="chev">${svgNext()}</span>` : ''}
+  </${el}>`;
+}
+
 // 彩色小标签
 function chip(text, bg, color) {
   return `<span class="chip" style="background:${bg};color:${color}">${text}</span>`;
