@@ -71,7 +71,7 @@ function picked(root, name) {
 }
 
 // ---------- 居中小输入框 ----------
-// fields: [{ key, label, type: text|number|date|select|textarea, value, options, placeholder }]
+// fields: [{ key, label, type: text|number|date|select|textarea|switch, value, options, placeholder }]
 function miniForm({ title, note, fields, okText = '确定', onOk }) {
   const m = document.createElement('div');
   m.className = 'mini-mask';
@@ -89,6 +89,9 @@ function miniForm({ title, note, fields, okText = '确定', onOk }) {
       input = `<input data-f="${i}" type="number" step="0.01" inputmode="decimal" value="${val}" placeholder="${ph || '0'}">`;
     } else if (f.type === 'date') {
       input = `<input data-f="${i}" type="date" value="${val}">`;
+    } else if (f.type === 'switch') {
+      // 开关：一行文字 + 右边开关，读出来是 true / false
+      return `<div class="switch"><span>${esc(f.label || '')}</span><input data-f="${i}" type="checkbox" ${f.value ? 'checked' : ''}></div>`;
     } else {
       input = `<input data-f="${i}" type="text" value="${val}" placeholder="${ph}">`;
     }
@@ -109,7 +112,10 @@ function miniForm({ title, note, fields, okText = '确定', onOk }) {
   const close = () => m.remove();
   const submit = () => {
     const v = {};
-    fields.forEach((f, i) => { v[f.key] = m.querySelector(`[data-f="${i}"]`).value; });
+    fields.forEach((f, i) => {
+      const el = m.querySelector(`[data-f="${i}"]`);
+      v[f.key] = f.type === 'switch' ? el.checked : el.value;
+    });
     if (onOk(v) !== false) close();
   };
   m.addEventListener('click', e => { if (e.target === m) close(); });
