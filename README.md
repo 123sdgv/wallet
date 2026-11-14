@@ -1,1 +1,0 @@
-https://123sdgv.github.io/wallet/
