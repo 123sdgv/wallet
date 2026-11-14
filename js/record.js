@@ -38,7 +38,7 @@ function txFormHTML(t) {
     <label class="field"><span>日期</span><input id="tx_date" type="date" value="${t.date || today()}"></label>
     <label class="field"><span>备注</span><input id="tx_note" placeholder="可不填" value="${esc(txNoteText(t))}"></label>
     <div class="switch" data-for="expense refund">
-      <span>计入本月预算<small>关掉 = 预算外：照常扣余额、算进当月支出，但不占预算、不算进日均</small></span>
+      <span>计入本月预算</span>
       <input id="tx_inb" type="checkbox" ${t.noBudget ? '' : 'checked'}>
     </div>`;
 }
@@ -113,7 +113,7 @@ function openAddSheet(tab = 'rec', day = null) {
     <div class="field"><span>标签</span><div class="chips">${chipsHTML('ptg', S.tags, firstTag, tagLabel)}</div></div>
     <div class="field"><span>付款账户</span><div class="chips">${chipsHTML('pac', S.accounts, firstAcc, accLabel)}</div></div>
     <label class="field"><span>日期</span><input id="a_date" type="date" value="${today()}"></label>
-    <div class="switch"><span>纳入本月预算<small>关掉后，买了入账也是预算外，不占本月预算</small></span><input id="a_inbudget" type="checkbox" checked></div>
+    <div class="switch"><span>纳入本月预算</span><input id="a_inbudget" type="checkbox" checked></div>
     <label class="field"><span>备注（可选）</span><textarea id="a_note" style="min-height:60px" placeholder="为什么想买"></textarea></label>
     <div id="a_warn" style="margin-bottom:10px"></div>
     <button class="btn block" type="button" id="btnPlan">生成计划</button>

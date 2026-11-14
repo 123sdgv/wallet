@@ -27,7 +27,7 @@ function openAssetsPopup() {
       <button class="accn" type="button" data-ren="${a.id}">${esc(a.name)}</button>
       <button class="bal" type="button" data-bal="${a.id}">${money(a.balance)}</button>
     </div>
-    <div>${accChips(a)}</div>`, `data-del-acc="${a.id}"`)).join('');
+    <div>${accChips(a)}</div>`, [{ attr: `data-del-acc="${a.id}"` }])).join('');
 
   openModal(`
     <div class="row">
@@ -36,8 +36,7 @@ function openAssetsPopup() {
         <button class="ib" type="button" id="addAccBtn" aria-label="新增账户">${svgPlus()}</button>${closeBtn()}
       </div>
     </div>
-    <div id="accList">${rows}</div>
-    <div class="muted" style="text-align:center;padding-top:10px">点名称改名 · 点金额改余额 · 左滑删除</div>`);
+    <div id="accList">${rows}</div>`);
   $('mc').onclick = closeModal;
   const guard = bindSwipe($('modal'));
   const redo = () => { save(); render(); openAssetsPopup(); };
@@ -62,7 +61,6 @@ function openAssetsPopup() {
     if (!a) return;
     miniForm({
       title: a.name + ' 余额',
-      note: '直接改余额不会生成流水，适合对账校准',
       fields: [{ key: 'v', type: 'number', value: a.balance }],
       onOk: o => {
         const v = Number(o.v);
@@ -262,7 +260,7 @@ function openGoalsPopup() {
     return swipeRow(`<button class="list-btn" type="button" style="display:block;border-bottom:0;background:#fff" data-goal="${g.id}">
         <div class="row"><strong style="color:var(--text)">${esc(g.name)}</strong><span>${money(g.saved)} / ${money(g.target)} ›</span></div>
         <div class="progress"><i style="width:${pct}%"></i></div>
-      </button>`, `data-del-goal="${g.id}"`, '删除', 'padding:0');
+      </button>`, [{ attr: `data-del-goal="${g.id}"` }], 'padding:0');
   }).join('');
   openModal(head + (S.goals.length ? `<div>${rows}</div>` : '<div class="empty">还没有专项项目</div>'));
   $('mc').onclick = closeModal;
@@ -306,7 +304,7 @@ function openGoalDetail(id) {
   const rows = g.log.slice().sort((a, b) => b.ts - a.ts).map(x => swipeRow(`<div class="row">
       <div><div class="nm">${esc(acc(x.acc)?.name || '未知账户')}</div><div class="muted">${today(new Date(x.ts))}</div></div>
       <b style="color:#047857">+${money(x.amt)}</b>
-    </div>`, `data-del-log="${x.id}"`, '取出')).join('');
+    </div>`, [{ attr: `data-del-log="${x.id}"`, text: '取出' }])).join('');
 
   openModal(`<div class="row"><button class="ib" type="button" id="goBack">${svgBack()}</button>${closeBtn()}</div>
     <h3 style="margin-top:4px">${esc(g.name)}</h3>

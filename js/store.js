@@ -36,9 +36,7 @@ const DEFAULT_TAGS = () => [
  * budgets:  { '2026-11': { total, set, tagLimits: { 标签id: 金额 } } }
  * safeAlloc: { 账户id: 金额 }                           每个账户里锁住的安全余额
  * goals:    专项储蓄 [{ id, name, target, saved, log: [{ id, acc, amt, ts }] }]
- * memos:    资金备忘：钱放在哪（比如 Apple 账号余额）。只是提醒，不影响任何金额
- *           [{ id, title, amount, cur, date, note, done, ts }]
- * settings.lastBackup: 上次导出完整备份的时间戳
+ * memos:    资金备忘，纯文字 [{ id, text, ts }]。不影响任何金额
  */
 const DEFAULT = () => ({
   settings: { safe: 0 },
@@ -88,15 +86,6 @@ const moneyS = money; // 旧名字，保留兼容
 function esc(s) {
   const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   return String(s ?? '').replace(/[&<>"']/g, m => map[m]);
-}
-
-// 时间戳 → 今天 / 昨天 / 3 天前
-function daysAgo(ts) {
-  const start = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const n = Math.round((start(new Date()) - start(new Date(ts))) / 86400000);
-  if (n <= 0) return '今天';
-  if (n === 1) return '昨天';
-  return n + ' 天前';
 }
 
 // 快速记账没填备注时自动生成的名字
@@ -149,6 +138,9 @@ function normalize(parsed) {
   ['accounts', 'txs', 'plans', 'goals', 'memos'].forEach(k => {
     if (!Array.isArray(merged[k])) merged[k] = [];
   });
+  // 资金备忘改成了纯文字，旧格式（带金额币种的）不再保留
+  merged.memos = merged.memos.filter(m => typeof m.text === 'string');
+  delete merged.settings.lastBackup;
   // 每次打开都回到当月，不停留在上次翻到的月份
   merged.ui.month = ym(new Date());
   merged.ui.calDay = null;

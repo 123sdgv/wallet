@@ -69,7 +69,6 @@ function viewCal() {
     ${expense.length ? label('支出', '#b91c1c', !income.length) + expense.map(txLine).join('') : ''}
     ${transfer.length ? `<div class="muted" style="margin:10px 0 4px">内部转账（不计收支）</div>${transfer.map(txLine).join('')}` : ''}
     ${!total ? '<div class="empty">这里还没有流水</div>' : ''}
-    ${total ? '<div class="muted" style="text-align:center;padding-top:10px">点一条可以修改 · 左滑删除</div>' : ''}
   </div>`;
 }
 
@@ -103,7 +102,7 @@ function txLine(t) {
     </div>
     <div style="font-weight:700;color:${color};flex:0 0 auto">${sign}${amount}</div>
   </div>`;
-  return swipeRow(inner, `data-del-tx="${t.id}"`);
+  return swipeRow(inner, [{ attr: `data-del-tx="${t.id}"` }]);
 }
 
 function bindCal() {
