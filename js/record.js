@@ -7,34 +7,30 @@ const TX_KINDS = [
   ['expense', '支出'],
   ['income', '收入'],
   ['refund', '退款'],
-  ['transfer', '转账'],
 ];
 
 // 流水 → 表单里的类型
 function txKind(t) {
-  if (t.type === 'transfer') return 'transfer';
   if (t.type === 'income') return 'income';
   return isRefund(t) ? 'refund' : 'expense';
 }
 
 // 表单里「备注」框要显示的文字
 function txNoteText(t) {
-  if (!isGenericItem(t.item) && t.item !== '退款' && t.item !== '转账') return t.item;
+  if (!isGenericItem(t.item) && t.item !== '退款') return t.item;
   return t.note || '';
 }
 
 // 记账 / 编辑共用的表单。t 是要编辑的流水（新建时传默认值）
 function txFormHTML(t) {
   const kind = txKind(t);
-  const firstOther = (S.accounts.find(a => a.id !== t.accountId) || {}).id;
   return `
     <div class="segmented" style="margin-bottom:12px">
       ${TX_KINDS.map(([k, name]) => `<button type="button" class="qa-type${k === kind ? ' active' : ''}" data-kind="${k}">${name}</button>`).join('')}
     </div>
     <label class="field"><span>金额</span><input id="tx_amt" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${t.amount ? Math.abs(Number(t.amount)) : ''}"></label>
     <div class="field" data-for="expense refund"><span>标签</span><div class="chips">${chipsHTML('ttg', S.tags, t.tagId, tagLabel)}</div></div>
-    <div class="field"><span id="tx_acc_label">账户</span><div class="chips">${chipsHTML('tac', S.accounts, t.accountId, accLabel)}</div></div>
-    <div class="field" data-for="transfer"><span>转入账户</span><div class="chips">${chipsHTML('tto', S.accounts, t.toAccountId || firstOther, accLabel)}</div></div>
+    <div class="field"><span>账户</span><div class="chips">${chipsHTML('tac', S.accounts, t.accountId, accLabel)}</div></div>
     <label class="field"><span>日期</span><input id="tx_date" type="date" value="${t.date || today()}"></label>
     <label class="field"><span>备注</span><input id="tx_note" placeholder="可不填" value="${esc(txNoteText(t))}"></label>
     <div class="switch" data-for="expense refund">
@@ -50,10 +46,9 @@ function bindTxForm(root) {
     root.querySelectorAll('[data-for]').forEach(el => {
       el.classList.toggle('hidden', !el.dataset.for.split(' ').includes(kind));
     });
-    $('tx_acc_label').textContent = kind === 'transfer' ? '转出账户' : '账户';
   };
   bindChips(root, 'kind', k => { kind = k; refresh(); });
-  ['ttg', 'tac', 'tto'].forEach(n => bindChips(root, n));
+  ['ttg', 'tac'].forEach(n => bindChips(root, n));
   refresh();
 
   return () => {
@@ -64,12 +59,6 @@ function bindTxForm(root) {
     const date = $('tx_date').value || today();
     const note = $('tx_note').value.trim();
 
-    if (kind === 'transfer') {
-      const to = picked(root, 'tto');
-      if (!acc(to)) { toast('选一个转入账户'); return null; }
-      if (to === accountId) { toast('转出和转入不能是同一个账户'); return null; }
-      return { type: 'transfer', amount, accountId, toAccountId: to, date, note, item: note || '转账' };
-    }
     if (kind === 'income') {
       return { type: 'income', amount, accountId, date, note, item: note || '快速收入' };
     }
@@ -111,12 +100,8 @@ function openAddSheet(tab = 'rec', day = null) {
     <label class="field"><span>预计金额</span><input id="a_amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></label>
     <label class="field"><span>买什么</span><input id="a_item" type="text" placeholder="一句话写清"></label>
     <div class="field"><span>标签</span><div class="chips">${chipsHTML('ptg', S.tags, firstTag, tagLabel)}</div></div>
-    <div class="field"><span>付款账户</span><div class="chips">${chipsHTML('pac', S.accounts, firstAcc, accLabel)}</div></div>
-    <label class="field"><span>日期</span><input id="a_date" type="date" value="${today()}"></label>
     <div class="switch"><span>纳入本月预算</span><input id="a_inbudget" type="checkbox" checked></div>
-    <label class="field"><span>备注（可选）</span><textarea id="a_note" style="min-height:60px" placeholder="为什么想买"></textarea></label>
-    <div id="a_warn" style="margin-bottom:10px"></div>
-    <button class="btn block" type="button" id="btnPlan">生成计划</button>
+    <button class="btn block" type="button" id="btnPlan" style="margin-top:6px">生成计划</button>
   </div>`);
 
   const root = $('modal');
@@ -145,14 +130,7 @@ function openAddSheet(tab = 'rec', day = null) {
 
   // 消费计划
   const planRoot = $('planP');
-  const updateWarn = () => {
-    const amt = Number($('a_amount').value || 0);
-    $('a_warn').innerHTML = planWarnHTML(amt, picked(planRoot, 'ptg'), $('a_inbudget').checked);
-  };
-  bindChips(planRoot, 'ptg', updateWarn);
-  bindChips(planRoot, 'pac');
-  $('a_amount').addEventListener('input', updateWarn);
-  $('a_inbudget').addEventListener('change', updateWarn);
+  bindChips(planRoot, 'ptg');
   $('btnPlan').onclick = () => {
     const amount = Number($('a_amount').value || 0);
     const item = $('a_item').value.trim();
@@ -161,9 +139,6 @@ function openAddSheet(tab = 'rec', day = null) {
       amount,
       item,
       tagId: picked(planRoot, 'ptg'),
-      accountId: picked(planRoot, 'pac'),
-      date: $('a_date').value || today(),
-      note: $('a_note').value.trim(),
       inBudget: $('a_inbudget').checked,
     });
     closeModal();
@@ -178,6 +153,17 @@ function openAddSheet(tab = 'rec', day = null) {
 function openTxEditor(id) {
   const old = S.txs.find(x => x.id === id);
   if (!old) return;
+  // 以前记的转账：转账功能已去掉，只能删除
+  if (old.type === 'transfer') {
+    openModal(`
+    <div class="row"><h3>转账记录</h3>${closeBtn()}</div>
+    <div class="row" style="margin-top:12px"><span>${esc(acc(old.accountId)?.name || '未知账户')} → ${esc(acc(old.toAccountId)?.name || '未知账户')}</span><b>${money(old.amount)}</b></div>
+    <div class="row" style="margin-top:8px"><span>${old.date}</span></div>
+    <button class="btn danger block" type="button" id="tx_del" style="margin-top:16px">删除</button>`);
+    $('mc').onclick = closeModal;
+    $('tx_del').onclick = () => { if (deleteTx(id)) closeModal(); };
+    return;
+  }
   openModal(`
   <div class="row"><h3>编辑流水</h3>${closeBtn()}</div>
   <div id="editP" style="margin-top:8px">
