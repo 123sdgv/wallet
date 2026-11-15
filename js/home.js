@@ -150,39 +150,3 @@ function completePlan(id) {
     },
   });
 }
-
-// 生成计划时的提醒：安全余额、标签上限、总预算都看一遍
-function planWarnHTML(amount, tagId, countIn) {
-  if (!amount) return '';
-  const msgs = [];
-  let level = 'ok';
-  const raise = l => { if (level !== 'danger') level = l; };
-
-  if (totalAssets() - amount < S.settings.safe) {
-    msgs.push('花后资产可能低于安全余额 ' + money(S.settings.safe) + '。');
-    level = 'danger';
-  }
-
-  const b = budget();
-  if (!countIn) {
-    msgs.push('这笔是预算外，不占本月预算，但会扣账户余额。');
-    raise('warn');
-  } else if (!b.set) {
-    msgs.push('本月预算还没设置。');
-    raise('warn');
-  } else {
-    const tagLimit = b.tagLimits?.[tagId];
-    if (tagLimit) {
-      const leftTag = Number(tagLimit) - spentByTag(tagId) - amount;
-      if (leftTag < 0) { msgs.push(`「${tag(tagId).name}」本月上限会超出 ${money(-leftTag)}。`); raise('warn'); }
-      else if (leftTag <= 30) { msgs.push(`买完「${tag(tagId).name}」只剩 ${money(leftTag)}。`); raise('warn'); }
-    }
-    const leftAll = remain() - amount;
-    if (leftAll < 0) { msgs.push('本月总预算会超出 ' + money(-leftAll) + '。'); raise('warn'); }
-    else if (leftAll <= 30) { msgs.push('买完本月只剩 ' + money(leftAll) + '。'); raise('warn'); }
-  }
-
-  const bg = level === 'danger' ? '#fef2f2' : level === 'warn' ? '#fffbeb' : '#ecfdf5';
-  const col = level === 'danger' ? '#b91c1c' : level === 'warn' ? '#b45309' : '#047857';
-  return `<div style="margin-top:4px;padding:10px 12px;border-radius:12px;background:${bg};color:${col};font-size:12.5px;line-height:1.6">${msgs.join(' ') || '在预算范围内。'}</div>`;
-}
