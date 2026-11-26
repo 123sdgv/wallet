@@ -41,3 +41,11 @@ export async function addExpense(db, { operation_id, expected_revision, amount_f
     before_fen: row.balance_fen + amount_fen, after_fen: row.balance_fen,
   };
 }
+
+export async function readChanges(db, after) {
+  const session = db.withSession('first-primary');
+  const [head, page] = await session.batch([session.prepare(latest), session.prepare(
+    'SELECT revision, operation_id, expense_fen, balance_fen, recorded_at FROM wallet_probe WHERE revision > ? ORDER BY revision LIMIT 100'
+  ).bind(after)]);
+  return { ...snapshot(head.results[0]), changes: page.results };
+}

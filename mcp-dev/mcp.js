@@ -35,10 +35,12 @@ const writeTool = {
 function invalid() {
   throw new McpError(ErrorCode.InvalidParams, 'Invalid test tool arguments.');
 }
-function validateExpense(args) {
+export function validExpense(args) {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return false;
   if (Object.keys(args).length !== 3 || typeof args.operation_id !== 'string' || !new RegExp(uuid).test(args.operation_id)
       || !Number.isInteger(args.amount_fen) || args.amount_fen < 1 || args.amount_fen > 1000
-      || !Number.isInteger(args.expected_revision) || args.expected_revision < 0 || args.expected_revision > 10000) invalid();
+      || !Number.isInteger(args.expected_revision) || args.expected_revision < 0 || args.expected_revision > 10000) return false;
+  return true;
 }
 function result(data) {
   return { content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data, isError: Boolean(data.error) };
@@ -64,7 +66,7 @@ export async function serveMcp(request, db, auth) {
         return result(await readBalance(db));
       }
       if (params.name !== writeTool.name) throw new McpError(ErrorCode.MethodNotFound, 'Unknown test tool.');
-      validateExpense(args);
+      if (!validExpense(args)) invalid();
       return result(await addExpense(db, args));
     } catch (error) {
       if (error instanceof McpError) throw error;

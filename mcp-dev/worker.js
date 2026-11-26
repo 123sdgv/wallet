@@ -1,6 +1,7 @@
 import { OAuthResourceServer, AuthorizationError } from '@cloudflare/workers-oauth-provider';
-import { consent, fingerprint, makeAuthorizationServer, OWNER } from './auth.js';
-import { READ, serveMcp } from './mcp.js';
+import { consent, fingerprint, makeAuthorizationServer, phoneOrigin, OWNER } from './auth.js';
+import { READ, WRITE, validExpense, serveMcp } from './mcp.js';
+import { addExpense, readChanges } from './ledger.js';
 import { ownerSetup } from './owner-setup.js';
 
 const MAX_BYTES = 16 * 1024;
@@ -28,9 +29,11 @@ async function route(request, env, ctx) {
   const url = new URL(request.url);
   if (url.origin !== env.ISSUER) return new Response(null, { status: 404 });
   const origin = request.headers.get('Origin');
-  if (origin && origin !== env.ISSUER && origin !== 'https://chatgpt.com') return new Response(null, { status: 403 });
+  const phoneRequest = origin === phoneOrigin(env.ISSUER) && phonePath(url.pathname);
+  if (origin && origin !== env.ISSUER && origin !== 'https://chatgpt.com' && !phoneRequest) return new Response(null, { status: 403 });
   const limit = await env.LIMITER.limit({ key: 'wallet-mcp-dev:' + (request.headers.get('CF-Connecting-IP') || 'local') });
   if (!limit.success) return new Response(null, { status: 429, headers: { 'Retry-After': '60' } });
+  if (phoneRequest && request.method === 'OPTIONS') return new Response(null, { status: 204 });
   request = await bounded(request);
   if (!request) return new Response(null, { status: 413 });
 
@@ -47,6 +50,25 @@ async function route(request, env, ctx) {
     });
   }
   const authorization = makeAuthorizationServer(issuer);
+  if (url.pathname === '/mcp/phone') {
+    if (!phoneRequest) return new Response(null, { status: 403 });
+    const match = /^Bearer (\S+)$/.exec(request.headers.get('Authorization') || '');
+    const auth = match && await authorization.validateToken(issuer + '/mcp', match[1], env);
+    if (!auth || auth.userId !== OWNER || auth.props?.clientSurface !== 'phone'
+        || auth.props.generation !== await fingerprint(env.OWNER_KEY)) return new Response(null, { status: 401 });
+    if (!auth.scope.includes(READ)) return new Response(null, { status: 403 });
+    if (request.method === 'GET') {
+      const after = url.searchParams.get('after') ?? '0';
+      if (!/^(0|[1-9][0-9]{0,4})$/.test(after)) return new Response(null, { status: 400 });
+      return Response.json(await readChanges(env.DB, Number(after)));
+    }
+    if (request.method !== 'POST') return new Response(null, { status: 405 });
+    if (!auth.scope.includes(WRITE)) return new Response(null, { status: 403 });
+    if (request.headers.get('Content-Type')?.split(';')[0] !== 'application/json') return new Response(null, { status: 415 });
+    const args = await request.json().catch(() => null);
+    if (!validExpense(args)) return new Response(null, { status: 400 });
+    return Response.json(await addExpense(env.DB, args));
+  }
   if (url.pathname === '/authorize') return consent(request, env, authorization.getOAuthApi(env));
   if (url.pathname === '/mcp' || url.pathname === '/.well-known/oauth-protected-resource/mcp'
       || url.pathname === '/.well-known/oauth-protected-resource') {
@@ -55,7 +77,7 @@ async function route(request, env, ctx) {
       requiredScopes: [READ],
       validateToken: () => async (audience, token) => {
         const verified = await authorization.validateToken(audience, token, env);
-        if (verified?.userId !== OWNER || verified.props?.generation !== await fingerprint(env.OWNER_KEY)) return null;
+        if (verified?.userId !== OWNER || verified.props?.clientSurface === 'phone' || verified.props?.generation !== await fingerprint(env.OWNER_KEY)) return null;
         return verified;
       },
       handler: { fetch: (req, bindings, context) => serveMcp(req, bindings.DB, context.auth) },
@@ -70,12 +92,22 @@ async function route(request, env, ctx) {
   return authorization.fetch(request, env, ctx);
 }
 
+function phonePath(path) {
+  return ['/oauth/register', '/oauth/token', '/oauth/revoke', '/mcp/phone'].includes(path);
+}
+
 export default {
   async fetch(request, env, ctx) {
     let response;
     try { response = await route(request, env, ctx); }
     catch (error) { response = new Response(null, { status: error instanceof AuthorizationError ? 400 : 503 }); }
     const headers = new Headers(response.headers);
+    if (request.headers.get('Origin') === phoneOrigin(env.ISSUER || '') && phonePath(new URL(request.url).pathname)) {
+      headers.set('Access-Control-Allow-Origin', phoneOrigin(env.ISSUER));
+      headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      headers.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+      headers.append('Vary', 'Origin');
+    }
     const isConsent = new URL(request.url).pathname === '/authorize';
     const isForm = isConsent && request.method === 'GET' && response.ok && headers.get('Content-Type')?.startsWith('text/html');
     headers.set('Cache-Control', 'private, no-store');

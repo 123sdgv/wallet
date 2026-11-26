@@ -4,6 +4,7 @@
 // ============================================================
 
 const PANELS = ['tags', 'summary', 'data', 'memo'];
+if (globalThis.walletSandbox) PANELS.push('sync');
 
 function viewSettings() {
   if (S.ui.setPanel && !PANELS.includes(S.ui.setPanel)) S.ui.setPanel = null;
@@ -27,11 +28,13 @@ function viewSettings() {
     ${row('summary', '消费总结')}
     ${row('tags', '消费标签')}
     ${row('data', '备份与清理')}
+    ${globalThis.walletSandbox ? row('sync', '虚拟账本同步') : ''}
   </div>`;
 }
 
 function viewSetPanel(panel) {
   const back = `<button class="ib" type="button" id="setBack" aria-label="返回">${svgBack()}</button>`;
+  if (panel === 'sync' && globalThis.walletSandbox) return walletSandbox.panel(back);
   if (panel === 'summary') return viewSummary(back);
   if (panel === 'memo') return viewMemo(back);
   if (panel === 'tags') return viewTags(back);
@@ -49,6 +52,7 @@ function bindSettings() {
   if (back) back.onclick = () => { S.ui.setPanel = null; save(); render(); };
 
   const p = S.ui.setPanel;
+  if (p === 'sync' && globalThis.walletSandbox) walletSandbox.bind();
   if (p === 'tags') bindTagPanel();
   if (p === 'summary') bindSummary();
   if (p === 'data') bindDataPanel();
@@ -192,12 +196,12 @@ function viewData(back) {
   <div class="card list-card">
     ${row('exportJson', '导出完整备份')}
     ${row('exportCsv', '导出流水表格')}
-    ${row('importJsonBtn', '从备份恢复')}
+    ${globalThis.walletSandbox ? '' : row('importJsonBtn', '从备份恢复')}
   </div>
   <input type="file" id="importJson" accept="application/json,.json" class="hidden">
   <div class="card list-card">
-    ${row('clearTxOnly', '清空流水', true)}
-    ${row('resetAll', '恢复初始', true)}
+    ${globalThis.walletSandbox ? '' : row('clearTxOnly', '清空流水', true)}
+    ${globalThis.walletSandbox ? '' : row('resetAll', '恢复初始', true)}
   </div>`;
 }
 
@@ -248,6 +252,7 @@ function bindDataPanel() {
     if (await saveFile('流水导出-' + today() + '.csv', new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }))) toast('已导出');
   };
 
+  if (globalThis.walletSandbox) return;
   $('importJsonBtn').onclick = () => $('importJson').click();
   $('importJson').onchange = async e => {
     const file = e.target.files?.[0];

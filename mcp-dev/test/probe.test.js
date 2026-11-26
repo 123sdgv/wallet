@@ -275,3 +275,49 @@ test('an expired local token record cannot read or write', async () => {
   const valid = await grant('wallet:read');
   assert.equal((await data(await call('get_test_balance', {}, valid))).revision, 2);
 });
+
+test('phone OAuth grant is isolated from ChatGPT; both clients see the same virtual receipts', async () => {
+  const phoneOrigin = issuer.replace('wallet-mcp-dev.', 'wallet-sync-dev.');
+  const redirect = phoneOrigin + '/connect.html';
+  const registration = await fetchTest('/oauth/register', { method: 'POST', headers: { Origin: phoneOrigin, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_name: 'Phone fixture', redirect_uris: [redirect], token_endpoint_auth_method: 'none' }) });
+  assert.equal(registration.status, 201);
+  const client = (await registration.json()).client_id;
+  async function phoneGrant(scope) {
+    const req = await begin(scope, { client_id: client, redirect_uri: redirect });
+    assert.equal(req.page.status, 200);
+    const cookie = req.page.headers.get('set-cookie').split(';')[0];
+    const handle = (await req.page.text()).match(/name="handle" value="([^"]+)"/)[1];
+    const response = await decide({ cookie, handle });
+    const location = new URL(response.headers.get('location'));
+    assert.equal(location.origin + location.pathname, redirect);
+    const token = await post('/oauth/token', { grant_type: 'authorization_code', client_id: client, resource: issuer + '/mcp',
+      redirect_uri: redirect, code_verifier: req.verifier, code: location.searchParams.get('code') }, { Origin: phoneOrigin });
+    assert.equal(token.status, 200);
+    return (await token.json()).access_token;
+  }
+  const phoneRead = await phoneGrant('wallet:read');
+  const chat = await grant('wallet:read wallet:write');
+  const request = (token, op, origin = phoneOrigin, cursor = 0) => fetchTest('/mcp/phone?after=' + cursor, {
+    method: op ? 'POST' : 'GET', headers: { Origin: origin, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: op && JSON.stringify(op) });
+  const before = await data(await call('get_test_balance', {}, chat));
+  const op = { operation_id: randomUUID(), expected_revision: before.revision, amount_fen: 77 };
+  assert.equal((await request(phoneRead)).status, 200);
+  assert.equal((await request(phoneRead, op)).status, 403);
+  const phoneWrite = await phoneGrant('wallet:read wallet:write');
+  assert.equal((await request(chat)).status, 401);
+  assert.equal((await request(phoneWrite, op, 'https://unrelated.invalid')).status, 403);
+  assert.equal((await call('get_test_balance', {}, phoneWrite)).status, 401);
+  assert.equal((await request(phoneWrite, { ...op, note: 'must remain local' })).status, 400);
+  const receipt = await request(phoneWrite, op);
+  assert.equal(receipt.headers.get('Access-Control-Allow-Origin'), phoneOrigin);
+  assert.equal((await receipt.json()).receipt_revision, before.revision + 1);
+  const state = await data(await call('get_test_balance', {}, chat));
+  assert.equal(state.balance_fen, before.balance_fen - 77);
+  const other = { operation_id: randomUUID(), expected_revision: state.revision, amount_fen: 1 };
+  await data(await call('add_test_expense', other, chat));
+  const page = await (await request(phoneWrite, null, phoneOrigin, before.revision)).json();
+  assert.deepEqual(page.changes.map(r => r.operation_id), [op.operation_id, other.operation_id]);
+  assert.equal(page.balance_fen, before.balance_fen - 78);
+});

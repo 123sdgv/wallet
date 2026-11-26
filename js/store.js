@@ -149,6 +149,7 @@ function normalize(parsed) {
 }
 
 function load() {
+  if (globalThis.walletSandbox) return walletSandbox.load(DEFAULT);
   try {
     const raw = localStorage.getItem(KEY);
     return raw ? normalize(JSON.parse(raw)) : DEFAULT();
@@ -158,6 +159,7 @@ function load() {
 }
 
 function save() {
+  if (globalThis.walletSandbox) return walletSandbox.save(S);
   localStorage.setItem(KEY, JSON.stringify(S));
 }
 

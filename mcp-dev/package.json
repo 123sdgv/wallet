@@ -5,7 +5,7 @@
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {
-    "build": "esbuild worker.js --bundle --format=esm --platform=browser --target=es2022 --conditions=workerd,worker --external:cloudflare:* --outfile=dist/worker.mjs",
+    "build": "esbuild worker.js --bundle --format=esm --platform=browser --target=es2022 --conditions=workerd,worker --external:cloudflare:* --outfile=dist/worker.mjs && node build-phone.mjs",
     "test": "npm run build && node --test test/*.test.js"
   },
   "dependencies": {
