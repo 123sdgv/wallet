@@ -58,7 +58,7 @@ function decide({ cookie, handle }, fields = {}, headers = {}) {
 async function codeFor(scope) {
   const form = await formFor(scope);
   const response = await decide(form);
-  assert.equal(response.status, 302, 'owner approval');
+  assert.equal(response.status, 303, 'owner approval must return via GET');
   const redirect = new URL(response.headers.get('Location'));
   assert.equal(redirect.origin + redirect.pathname, callback);
   assert.equal(redirect.searchParams.get('iss'), issuer);
@@ -137,7 +137,24 @@ test('consent requires the owner, the same browser and an explicit approval', as
   assert.equal((await decide(form, {}, { Origin: 'https://other.invalid' })).status, 403);
   assert.equal((await decide(form, {}, { Cookie: '' })).status, 400);
   const denied = await decide(await formFor('wallet:read'), { decision: 'deny' });
+  assert.equal(denied.status, 303);
   assert.equal(new URL(denied.headers.get('Location')).searchParams.get('error'), 'access_denied');
+});
+
+test('browser form retains its origin and failed consent renders an inline message', async () => {
+  const { page } = await begin('wallet:read');
+  assert.equal(page.headers.get('Referrer-Policy'), 'strict-origin');
+  const form = await formFor('wallet:read');
+  const opaque = await decide(form, {}, { Origin: 'null' });
+  const stale = await decide(form, {}, { Cookie: '' });
+  assert.equal(opaque.status, 403);
+  assert.equal(stale.status, 400);
+  for (const response of [opaque, stale]) {
+    assert.equal(response.headers.get('Referrer-Policy'), 'no-referrer');
+    assert.match(response.headers.get('Content-Type'), /^text\/plain; charset=utf-8$/);
+    assert.equal(response.headers.get('Content-Disposition'), 'inline');
+    assert.match(await response.text(), /Wallet/);
+  }
 });
 
 test('read-only token cannot change balance; revocation invalidates it', async () => {

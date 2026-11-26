@@ -76,10 +76,26 @@ export default {
     try { response = await route(request, env, ctx); }
     catch (error) { response = new Response(null, { status: error instanceof AuthorizationError ? 400 : 503 }); }
     const headers = new Headers(response.headers);
+    const isConsent = new URL(request.url).pathname === '/authorize';
+    const isForm = isConsent && request.method === 'GET' && response.ok && headers.get('Content-Type')?.startsWith('text/html');
     headers.set('Cache-Control', 'private, no-store');
-    headers.set('Referrer-Policy', 'no-referrer');
+    // The browser needs the page origin for a same-origin form POST. Keep OAuth query parameters private.
+    headers.set('Referrer-Policy', isForm ? 'strict-origin' : 'no-referrer');
     headers.set('X-Content-Type-Options', 'nosniff');
     headers.set('X-Frame-Options', 'DENY');
-    return new Response(response.body, { status: response.status, headers });
+    let body = response.body;
+    if (isConsent && response.status >= 400) {
+      headers.set('Content-Type', 'text/plain; charset=utf-8');
+      headers.set('Content-Disposition', 'inline');
+      if (!body && request.method !== 'HEAD') {
+        const messages = {
+          400: '授权请求无效或已过期。请回到 ChatGPT，从 Wallet 插件重新开始连接。',
+          403: '无法验证授权页面的来源。请回到 ChatGPT，从 Wallet 插件重新打开授权页。',
+          429: '授权请求过于频繁。请等一分钟，再从 Wallet 插件重试。',
+        };
+        body = messages[response.status] ?? '暂时无法完成授权。请稍后从 ChatGPT 的 Wallet 插件重试。';
+      }
+    }
+    return new Response(body, { status: response.status, headers });
   },
 };

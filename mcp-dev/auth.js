@@ -34,7 +34,7 @@ export async function consent(request, env, oauth) {
     const auth = await oauth.parseAuthRequest(request);
     if (auth.redirectUri !== redirectUri || auth.codeChallengeMethod !== 'S256' || !auth.codeChallenge
         || !auth.scope.includes(READ) || auth.scope.some(s => !scopes.includes(s))) {
-      return new Response('Invalid test authorization request.', { status: 400 });
+      return new Response('授权请求无效。请回到 ChatGPT，从 Wallet 插件重新开始连接。', { status: 400 });
     }
     const details = await oauth.describeConsent(auth);
     const { handle, headers } = await oauth.beginConsent(auth);
@@ -46,8 +46,8 @@ export async function consent(request, env, oauth) {
 <p>请求权限：${auth.scope.map(s => labels[s]).join('、')}。授权有效期 15 分钟。</p>
 <form method="post" action="/authorize">
 <input type="hidden" name="handle" value="${escapeHtml(handle)}">
-<label>测试账本所有者密钥 <input type="password" name="owner_key" autocomplete="off" maxlength="64"></label>
-<p><button name="decision" value="approve">允许本次权限</button> <button name="decision" value="deny">拒绝</button></p></form></html>`;
+<label>测试账本所有者密钥 <input type="password" name="owner_key" autocomplete="off" maxlength="64" required></label>
+<p><button name="decision" value="approve">允许本次权限</button> <button name="decision" value="deny" formnovalidate>拒绝</button></p></form></html>`;
     return new Response(page, { headers });
   }
   if (request.method !== 'POST') return new Response(null, { status: 405 });
@@ -59,12 +59,12 @@ export async function consent(request, env, oauth) {
   if (form.get('decision') === 'deny') {
     const denied = await oauth.denyConsent(request, handle);
     denied.headers.set('Location', denied.redirectTo);
-    return new Response(null, { status: 302, headers: denied.headers });
+    return new Response(null, { status: 303, headers: denied.headers });
   }
   const key = form.get('owner_key');
   if (form.get('decision') !== 'approve' || typeof key !== 'string' || !/^[a-f0-9]{64}$/.test(key)
       || !crypto.subtle.timingSafeEqual(new TextEncoder().encode(key), new TextEncoder().encode(env.OWNER_KEY))) {
-    return new Response('Authorization denied.', { status: 403 });
+    return new Response('测试账本所有者密钥不匹配。请返回上一页，重新输入此测试账本的密钥。', { status: 403 });
   }
   const approved = await oauth.approveConsent(request, handle);
   const { redirectTo } = await oauth.completeAuthorization({
@@ -72,5 +72,5 @@ export async function consent(request, env, oauth) {
     metadata: {}, props: { generation: await fingerprint(env.OWNER_KEY) },
   });
   approved.headers.set('Location', redirectTo);
-  return new Response(null, { status: 302, headers: approved.headers });
+  return new Response(null, { status: 303, headers: approved.headers });
 }
