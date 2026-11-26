@@ -2,6 +2,8 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js';
 import { insufficientScope } from '@cloudflare/workers-oauth-provider';
+import { addLedgerPosting, postingTool, FULL_WRITE } from './financial-write.js';
+import { financialReads, FULL_READ, readFinancial } from './financial-read.js';
 import { addExpense, readBalance } from './ledger.js';
 
 export const READ = 'wallet:read';
@@ -46,7 +48,7 @@ function result(data) {
   return { content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data, isError: Boolean(data.error) };
 }
 
-export async function serveMcp(request, db, auth) {
+export async function serveMcp(request, db, auth, businessDb) {
   if (!auth.scope.includes(READ)) return insufficientScope(auth, [READ]);
   if (request.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } });
   if (request.headers.get('Content-Type')?.split(';')[0].trim() !== 'application/json') return new Response(null, { status: 415 });
@@ -56,14 +58,28 @@ export async function serveMcp(request, db, auth) {
   if (body.method === 'tools/call' && body.params?.name === writeTool.name && !auth.scope.includes(WRITE)) {
     return insufficientScope(auth, [READ, WRITE]);
   }
+  const extra = businessDb ? financialReads : [];
+  if (body.method === 'tools/call' && extra.some(t => t.name === body.params?.name) && !auth.scope.includes(FULL_READ)) {
+    return insufficientScope(auth, [READ, FULL_READ]);
+  }
+  if (businessDb && body.method === 'tools/call' && body.params?.name === postingTool.name
+      && (!auth.scope.includes(FULL_WRITE) || !auth.scope.includes(FULL_READ))) {
+    return insufficientScope(auth, [READ, FULL_READ, FULL_WRITE]);
+  }
   const server = new Server({ name: 'wallet-mcp-dev', version: '0.1.0' }, { capabilities: { tools: {} } });
-  server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: [readTool, writeTool] }));
+  server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: businessDb ? [readTool, writeTool, ...extra, postingTool] : [readTool, writeTool] }));
   server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
     const args = params.arguments ?? {};
     try {
       if (params.name === readTool.name) {
         if (Object.keys(args).length) invalid();
         return result(await readBalance(db));
+      }
+      if (businessDb && params.name === postingTool.name) return result(await addLedgerPosting(businessDb, args));
+      if (extra.some(t => t.name === params.name)) {
+        const response = await readFinancial(businessDb, params.name, args);
+        if (response.error === 'invalid_arguments') invalid();
+        return result(response);
       }
       if (params.name !== writeTool.name) throw new McpError(ErrorCode.MethodNotFound, 'Unknown test tool.');
       if (!validExpense(args)) invalid();

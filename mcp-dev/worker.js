@@ -49,7 +49,7 @@ async function route(request, env, ctx) {
       status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     });
   }
-  const authorization = makeAuthorizationServer(issuer);
+  const authorization = makeAuthorizationServer(issuer, Boolean(env.BUSINESS_DB));
   if (url.pathname === '/mcp/phone') {
     if (!phoneRequest) return new Response(null, { status: 403 });
     const match = /^Bearer (\S+)$/.exec(request.headers.get('Authorization') || '');
@@ -80,7 +80,7 @@ async function route(request, env, ctx) {
         if (verified?.userId !== OWNER || verified.props?.clientSurface === 'phone' || verified.props?.generation !== await fingerprint(env.OWNER_KEY)) return null;
         return verified;
       },
-      handler: { fetch: (req, bindings, context) => serveMcp(req, bindings.DB, context.auth) },
+      handler: { fetch: (req, bindings, context) => serveMcp(req, bindings.DB, context.auth, bindings.BUSINESS_DB) },
     });
     // Some clients try the origin-level discovery URL before the path-specific URL.
     if (url.pathname === resourceMetadata && publicMetadata) {

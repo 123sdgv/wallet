@@ -1,6 +1,6 @@
 // Independent public application shell. This Worker has no ledger, secret or database bindings.
 import assets from './dist/phone-assets.mjs';
-const types = { js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', html: 'text/html; charset=utf-8',
+const types = { mjs: 'text/javascript; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', html: 'text/html; charset=utf-8',
   json: 'application/json', png: 'image/png' };
 export default {
   fetch(request) {

@@ -1,11 +1,11 @@
 // 缓存当前 Wallet 的离线页面、图标和脚本。
 const scope = self.registration.scope;
 const cachePrefix = 'sober-wallet-shell:' + scope + ':';
-const CACHE = cachePrefix + 'v18';
+const CACHE = cachePrefix + 'v19';
 const ASSETS = [
   './', './index.html', './manifest.json', './icon-192.png',
   './css/style.css',
-  './js/store.js', './js/calc.js', './js/ui.js', './js/home.js', './js/record.js',
+  './js/reconcile.mjs', './js/store.js', './js/calc.js', './js/ui.js', './js/home.js', './js/record.js',
   './js/calendar.js', './js/popups.js', './js/summary.js', './js/memo.js', './js/settings.js', './js/app.js',
 ];
 const assets = new Set(ASSETS.map(path => new URL(path, scope).href));

@@ -1,4 +1,6 @@
 import { OAuthAuthorizationServer } from '@cloudflare/workers-oauth-provider';
+import { FULL_WRITE } from './financial-write.js';
+import { FULL_READ } from './financial-read.js';
 import { READ, WRITE } from './mcp.js';
 
 export const OWNER = 'wallet-probe-owner';
@@ -6,11 +8,11 @@ const redirectUri = 'https://chatgpt.com/connector_platform_oauth_redirect';
 export const phoneOrigin = issuer => issuer.replace('https://wallet-mcp-dev.', 'https://wallet-sync-dev.');
 const phoneRedirect = issuer => phoneOrigin(issuer) + '/connect.html';
 const scopes = [READ, WRITE];
-const labels = { [READ]: '查询虚拟余额', [WRITE]: '新增虚拟支出' };
+const labels = { [FULL_WRITE]: '新增完整账本流水（支出、收入、退款、转账记录）', [FULL_READ]: '查询完整账本、流水、备注与资金备忘', [READ]: '查询虚拟余额', [WRITE]: '新增虚拟支出' };
 
-export function makeAuthorizationServer(issuer) {
+export function makeAuthorizationServer(issuer, businessEnabled = false) {
   return new OAuthAuthorizationServer({
-    issuer, resources: [issuer + '/mcp'], scopesSupported: scopes,
+    issuer, resources: [issuer + '/mcp'], scopesSupported: businessEnabled ? [...scopes, FULL_READ, FULL_WRITE] : scopes,
     clientRegistrationEndpoint: '/oauth/register', clientRegistrationTTL: 86400,
     accessTokenTTL: 900, refreshTokenTTL: 0,
     clientRegistrationCallback({ clientMetadata: client }) {
@@ -35,8 +37,9 @@ export async function consent(request, env, oauth) {
   if (request.method === 'GET') {
     const auth = await oauth.parseAuthRequest(request);
     const phone = auth.redirectUri === phoneRedirect(env.ISSUER);
+    const allowedScopes = !phone && env.BUSINESS_DB ? [...scopes, FULL_READ, FULL_WRITE] : scopes;
     if ((!phone && auth.redirectUri !== redirectUri) || auth.codeChallengeMethod !== 'S256' || !auth.codeChallenge
-        || !auth.scope.includes(READ) || auth.scope.some(s => !scopes.includes(s))) {
+        || !auth.scope.includes(READ) || (auth.scope.includes(FULL_WRITE) && !auth.scope.includes(FULL_READ)) || auth.scope.some(s => !allowedScopes.includes(s))) {
       return new Response('授权请求无效。请回到 ChatGPT，从 Wallet 插件重新开始连接。', { status: 400 });
     }
     const details = await oauth.describeConsent(auth);

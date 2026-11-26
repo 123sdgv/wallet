@@ -321,3 +321,50 @@ test('phone OAuth grant is isolated from ChatGPT; both clients see the same virt
   assert.deepEqual(page.changes.map(r => r.operation_id), [op.operation_id, other.operation_id]);
   assert.equal(page.balance_fen, before.balance_fen - 78);
 });
+
+test('complete ledger reads require a separate scope and return only the requested synthetic data', async () => {
+  const { initializeOpeningLedger } = await import('../opening-ledger.js');
+  await runtime.setOptions({ ...options, d1Databases: ['DB','BUSINESS_DB'] });
+  try {
+    const db = await runtime.getD1Database('BUSINESS_DB');
+    const schema = await readFile(file('../business-schema.sql'), 'utf8');
+    for (const statement of schema.replace(/^--.*$/gm,'').trim().split(/\n\s*\n/)) await db.prepare(statement).run();
+    const source = {settings:{safe:10},safeAlloc:{cash:10},accounts:[{id:'cash',name:'虚拟',balance:100}],
+      tags:[{id:'daily',name:'测试'}],goals:[],plans:[],memos:[{id:'m',text:'fixture memo'}],budgets:{'2026-11':{total:20,set:true,tagLimits:{daily:20}}},
+      txs:[{id:'prior',date:'2026-11-01',type:'expense',accountId:'cash',amount:2,tagId:'daily',note:'fixture note'}]};
+    await initializeOpeningLedger(db,source);
+    const limited = await grant('wallet:read');
+    const denied = await call('get_financial_records',{collection:'memos'},limited);
+    assert.equal(denied.status,403);
+    assert.match(denied.headers.get('WWW-Authenticate'),/wallet:ledger:read/);
+    let full = await grant('wallet:read wallet:ledger:read');
+    const ledger = async (name,args) => data(await call(name,args,full));
+    const overview = await ledger('get_financial_overview',{month:'2026-11'});
+    assert.equal(overview.assets_fen,10000);
+    assert.equal(overview.free_fen,9000);
+    assert.equal(overview.remaining_fen,1800);
+    assert.doesNotMatch(JSON.stringify(overview),/fixture note|fixture memo/);
+    const first=await ledger('get_financial_records',{collection:'txs',limit:1});
+    assert.equal(first.records[0].id,'prior');
+    const fields = {kind:'refund',amount_fen:55,operation_id:randomUUID(),expected_revision:0,account_id:'cash',local_date:'2026-11-26',tag_id:'daily'};
+    assert.equal((await call('add_ledger_transaction',fields,full)).status,403);
+    assert.equal((await begin('wallet:read wallet:ledger:write')).page.status,400);
+    const writer=await grant('wallet:read wallet:ledger:read wallet:ledger:write');
+    const receipt=await data(await call('add_ledger_transaction',fields,writer));
+    assert.equal(receipt.revision,1);
+    assert.deepEqual(receipt.account_changes,[{id:'cash',before_fen:10000,after_fen:10055}]);
+    const updatedRead = await grant('wallet:read wallet:ledger:read');
+    full = updatedRead;
+    const now=await ledger('get_financial_overview',{month:'2026-11'});
+    assert.equal(now.assets_fen,10055);assert.equal(now.refund_fen,55);assert.equal(now.remaining_fen,1855);
+    const changed=await ledger('get_financial_records',{collection:'txs',revision:0});
+    assert.equal(changed.error,'revision_conflict');
+    const txs=await ledger('get_financial_records',{collection:'txs',account_id:'cash',tag_id:'daily',month:'2026-11',limit:1});
+    assert.equal(txs.records[0].amount,-0.55);assert.equal(txs.next_offset,1);
+    const next=await ledger('get_financial_records',{collection:'txs',offset:1,revision:1,limit:1});
+    assert.equal(next.records[0].id,'prior');assert.equal(next.next_offset,null);
+    assert.equal((await ledger('get_financial_records',{collection:'accounts'})).records[0].balance,100.55);
+    assert.equal((await ledger('get_financial_records',{collection:'memos'})).records[0].text,'fixture memo');
+    assert.equal((await call('add_test_expense',{operation_id:randomUUID(),expected_revision:0,amount_fen:1},full)).status,403);
+  } finally { await runtime.setOptions(options); }
+});

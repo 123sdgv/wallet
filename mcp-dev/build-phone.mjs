@@ -13,7 +13,7 @@ const index = base.replace(tags[0][0], entry).replace(/<script src="js\/[\w-]+\.
 const compiled = await build({ entryPoints: ['phone/start.js'], bundle: true, format: 'esm', write: false });
 const assets = { '/': index, '/phone.js': compiled.outputFiles[0].text,
   '/connect.html': '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Wallet 授权</title><p id="sync-status">正在返回虚拟账本</p><a href="/">返回 Wallet</a><script type="module" src="/phone.js"></script></html>' };
-for (const path of [...scripts, 'css/style.css', 'sw.js']) assets['/' + path] = await source(path);
+for (const path of [...scripts, 'js/reconcile.mjs', 'css/style.css', 'sw.js']) assets['/' + path] = await source(path);
 assets['/css/style.css'] += '\n#sync-status{margin:0;padding:.45rem .8rem;text-align:center;color:#134e4a;background:#f0fdfa;font-size:.82rem}';
 assets['/sw.js'] = assets['/sw.js'].replace("  './', './index.html'", "  './phone.js', './', './index.html'");
 const manifest = JSON.parse(await source('manifest.json'));

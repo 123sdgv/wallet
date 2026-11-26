@@ -31,3 +31,11 @@ BEGIN
     WHERE id = NEW.account_id;
   UPDATE wallet_accounts SET balance_fen = balance_fen + NEW.amount_fen WHERE id = NEW.to_account_id;
 END;
+
+-- A single immutable opening ledger; historical transactions already affected these balances.
+CREATE TABLE IF NOT EXISTS wallet_opening (
+  singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+  digest TEXT NOT NULL,
+  ledger_json TEXT NOT NULL CHECK (json_valid(ledger_json)),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+) STRICT;
