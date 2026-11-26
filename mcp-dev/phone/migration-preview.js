@@ -1,10 +1,10 @@
-import { reconcileWallet } from '../../js/reconcile.mjs';
+import { reconcileWallet, WalletDateError } from '../../js/reconcile.mjs';
 import { openingLedger } from '../opening-ledger.js';
 
 const input = document.querySelector('input'), output = document.getElementById('result');
 const currency = new Intl.NumberFormat('zh-CN',{style:'currency',currency:'CNY'});
 const amount = fen => currency.format(fen / 100);
-const labels = {accounts:'账户',txs:'流水',tags:'标签',plans:'计划',goals:'储蓄目标',memos:'备忘',budgets:'有预算记录的月份'};
+const labels = {accounts:'账户',txs:'流水',tags:'标签',plans:'计划',goals:'储蓄目标',memos:'备忘',budgets:'预算周期记录'};
 const diagnostic = {
   invalid_record:'记录结构异常', unrecognized_financial_field:'包含尚未支持的字段',
   invalid_financial_field:'字段格式异常', invalid_identifier:'记录或关联编号格式不受支持',
@@ -42,13 +42,18 @@ input.addEventListener('change', async () => {
     for (const a of report.accounts) add('p',a.name+'　'+amount(a.balance_fen));
     add('h3','逐月预算和退款');
     for (const m of report.months) add('p',m.month+'　预算 '+(m.budget_fen===null?'未设置':amount(m.budget_fen))+'　预算内净支出 '+amount(m.in_budget_fen)+'　预算外 '+amount(m.off_budget_fen)+'　退款 '+amount(m.refund_fen));
+    if (report.halfMonths.length) {
+      add('h3','旧版半月预算');
+      for (const h of report.halfMonths) add('p',h.month+(h.half==='A'?' 上半月':' 下半月')+'　总预算 '+(h.budget_fen===null?'未设置':amount(h.budget_fen))+'　分类额度合计 '+amount(h.category_caps_fen));
+    }
     add('p','拟迁移范围包括账户、金额、流水明细与备注、标签、预算、计划、专项储蓄和资金备忘。操作停留在预览。');
   } catch (e) {
     // Only display validator-owned messages. Parser and browser errors may contain input or file names.
+    if(e instanceof WalletDateError) return stop(e.code,e.message);
     const reason=Object.hasOwn(diagnostic,e.message) && diagnostic[e.message];
     if(reason) return stop('FIELD-'+e.message,reason+'。');
     const checks=['记录编号缺失或重复，无法逐笔核对。','合计金额超出可核对范围。','预算月份或流水日期无效。','月预算结构无效。','流水存在无法识别的类型。','流水日期无效。'];
-    if(checks.includes(e.message) || /^(账户|安全余额|安全余额分配|专项储蓄|专项存取|分类预算|月预算|流水)存在(无效金额|超出范围或精度超过分的金额)。$/.test(e.message)) return stop('CHECK-DATA',e.message);
+    if(checks.includes(e.message) || /^(账户|安全余额|安全余额分配|专项储蓄|专项存取|分类预算|半月预算|月预算|流水)存在(无效金额|超出范围或精度超过分的金额)。$/.test(e.message)) return stop('CHECK-DATA',e.message);
     stop('CHECK-RECORD','一条记录的内部结构暂时无法读取，请保留原文件。');
   }
 });

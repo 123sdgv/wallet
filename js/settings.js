@@ -240,13 +240,14 @@ async function showReconciliation() {
       '，预算内净支出 ' + amount(m.in_budget_fen) + '，预算外 ' + amount(m.off_budget_fen) + '，退款 ' + amount(m.refund_fen))).join('');
     openModal('<h2>本机账本核对</h2><p>核对结果只在本机显示。</p>' +
       line('记录数量', report.counts.accounts + ' 个账户，' + report.counts.txs + ' 笔流水，' + report.counts.goals + ' 个专项') +
-      line('其他记录', report.counts.tags + ' 个标签，' + report.counts.budgets + ' 个月预算记录，' + report.counts.plans + ' 个计划，' + report.counts.memos + ' 条备忘') +
+      line('其他记录', report.counts.tags + ' 个标签，' + report.counts.budgets + ' 条预算周期记录，' + report.counts.plans + ' 个计划，' + report.counts.memos + ' 条备忘') +
       line('总资产', amount(report.assets_fen)) + line('安全余额', amount(report.safe_fen)) +
       line('专项储蓄', amount(report.savings_fen)) + line('可安排资金', amount(report.free_fen)) +
       line('累计退款', amount(report.refund_fen)) +
       '<details><summary>迁移预览与数据范围</summary><p>拟迁移账户、流水及备注、标签、预算、计划、储蓄和资金备忘。本次仅在本机核对。正式迁移需要另行确认。</p></details>' +
       '<details><summary>各账户余额</summary>' + report.accounts.map(a => line(a.name, amount(a.balance_fen))).join('') + '</details>' +
       '<details><summary>逐月核对</summary>' + months + '</details>' +
+      (report.halfMonths.length ? '<details><summary>旧版半月预算</summary>'+report.halfMonths.map(h=>line(h.month+(h.half==='A'?' 上半月':' 下半月'),h.budget_fen===null?'未设置':amount(h.budget_fen))).join('')+'</details>' : '')+
       report.issues.map(text => line('需核对', text)).join(''));
   } catch (error) { toast(error.message || '暂时无法核对此账本。'); }
 }

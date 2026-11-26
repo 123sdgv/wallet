@@ -71,3 +71,21 @@ test('opening initialization is atomic and retries never overwrite later account
   assert.doesNotMatch(stored.ledger_json,/local-only-marker|setPanel/);
   assert.deepEqual(JSON.parse(stored.ledger_json),openingLedger(s).ledger);
 });
+
+test('historical half-month budgets retain independent totals, category limits and original keys', () => {
+  const s=fixture();
+  s.budgets['2026-11-A']={set:true,total:80,tagLimits:{daily:35}};
+  s.budgets['2026-11-B']={set:false,total:0,tagLimits:{}};
+  const {ledger,report}=openingLedger(s);
+  assert.deepEqual(ledger.budgets,s.budgets);
+  assert.deepEqual(report.halfMonths,[
+    {month:'2026-11',half:'A',budget_fen:8000,category_caps_fen:3500},
+    {month:'2026-11',half:'B',budget_fen:null,category_caps_fen:0},
+  ]);
+  assert.equal(report.months[0].budget_fen,2500);
+  s.budgets['2026-19-A']=s.budgets['2026-11-A'];
+  assert.throws(()=>openingLedger(s),{code:'BUDGET-PERIOD'});
+  delete s.budgets['2026-19-A'];
+  s.txs[0].date='2026-02-31';
+  assert.throws(()=>openingLedger(s),{code:'TX-DATE'});
+});

@@ -3,6 +3,12 @@
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
+export class WalletDateError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.code = code;
+  }
+}
 export function reconcileWallet(s) {
   const collections = ['accounts','tags','txs','goals','plans','memos'];
   if (!isObject(s) || !collections.every(k => Array.isArray(s[k])) || !isObject(s.budgets)
@@ -50,23 +56,35 @@ export function reconcileWallet(s) {
     if (g.log.some(x => !ids.accounts.has(x.acc))) issues.add('专项存取引用了已移除的账户');
   }
   const months = new Map();
+  const halfMonths = [];
   function month(key) {
-    if (!monthPattern.test(key)) throw Error('预算月份或流水日期无效。');
     if (!months.has(key)) months.set(key, { month: key, budget_fen: null, in_budget_fen: 0, off_budget_fen: 0, refund_fen: 0 });
     return months.get(key);
   }
+  let budgetIndex = 0;
   for (const [key, b] of Object.entries(s.budgets)) {
+    budgetIndex++;
+    const half = /^(\d{4}-(?:0[1-9]|1[0-2]))-([AB])$/.exec(key);
+    if (!half && !monthPattern.test(key)) {
+      throw new WalletDateError('BUDGET-PERIOD', '第 '+budgetIndex+' 条预算的周期格式未识别。请保留这条记录。');
+    }
     if (!isObject(b) || !isObject(b.tagLimits ?? {})) throw Error('月预算结构无效。');
     const total = sumValues(Object.values(b.tagLimits ?? {}), '分类预算');
+    if (half) {
+      // Historical Wallet allowed the total budget and category caps to be set independently.
+      const cap = cents(b.total ?? 0, '半月预算');
+      halfMonths.push({month:half[1], half:half[2], budget_fen:b.set ? cap : null, category_caps_fen:total});
+      continue;
+    }
     month(key).budget_fen = total > 0 ? total : null;
     if (b.total !== undefined && cents(b.total, '月预算') !== total) issues.add('已存月预算与分类额度合计不一致');
   }
   let refunds = 0;
-  for (const tx of s.txs) {
+  for (const [index, tx] of s.txs.entries()) {
     if (!['expense','transfer','income'].includes(tx.type)) throw Error('流水存在无法识别的类型。');
-    if (typeof tx.date !== 'string' || !/^\d{4}-\d\d-\d\d$/.test(tx.date)) throw Error('流水日期无效。');
+    if (typeof tx.date !== 'string' || !/^\d{4}-\d\d-\d\d$/.test(tx.date)) throw new WalletDateError('TX-DATE', '第 '+(index+1)+' 笔流水的日期无效。');
     const parsed = new Date(tx.date + 'T00:00:00Z');
-    if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== tx.date) throw Error('流水日期无效。');
+    if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== tx.date) throw new WalletDateError('TX-DATE', '第 '+(index+1)+' 笔流水的日期无效。');
     const group = month(tx.date.slice(0, 7)), value = cents(tx.amount, '流水');
     if (!ids.accounts.has(tx.accountId) || (tx.type === 'transfer' && !ids.accounts.has(tx.toAccountId))) issues.add('历史流水引用了已移除的账户');
     if (tx.type !== 'expense' || tx.refunded) continue;
@@ -77,6 +95,7 @@ export function reconcileWallet(s) {
   counts.budgets = Object.keys(s.budgets).length;
   return { currency: 'CNY', counts, accounts, assets_fen: assets, safe_fen: safe, savings_fen: savings,
     free_fen: add(add(assets, -safe), -savings), refund_fen: refunds,
+    halfMonths,
     months: [...months.values()].sort((a, b) => a.month.localeCompare(b.month)).map(m => ({ ...m,
       remaining_fen: m.budget_fen === null ? null : add(m.budget_fen, -m.in_budget_fen) })), issues: [...issues] };
 }
