@@ -30,12 +30,37 @@ input.addEventListener('change', async () => {
   }
   try {
     const report=reconcileWallet(source);
-    if(report.issues.length) return stop('CHECK-REVIEW',report.issues.join('；')+'。');
-    const {ledger}=openingLedger(source);
-    const bytes=new TextEncoder().encode(JSON.stringify(ledger));
-    if(bytes.length>512*1024) return stop('LEDGER-SIZE','账本超过当前迁移容量 512 KiB，请保留完整备份。');
     const add = (tag,text) => { const el=document.createElement(tag); el.textContent=text; output.append(el); };
     add('h2','迁移前核对');
+    if (report.issues.length) {
+      add('h3','暂缓迁移 · 以下是本机核对结果');
+      for (const issue of report.issues) add('p',issue);
+      const accounts=new Set(source.accounts.map(a=>a.id));
+      const missing=new Set();
+      let affected=0;
+      for (const tx of source.txs) {
+        const refs=tx.type==='transfer' ? [tx.accountId,tx.toAccountId] : [tx.accountId];
+        const absent=refs.filter(id=>!accounts.has(id));
+        if (absent.length) {
+          affected++;
+          for (const id of absent) missing.add(id);
+        }
+      }
+      if (affected) add('p',affected+' 笔历史流水引用了当前账户列表以外的 '+missing.size+' 个账户编号。总资产取自现有账户余额；历史流水仍按原日期参与收支统计。');
+      for (const m of report.months) {
+        const b=source.budgets[m.month];
+        if (!b || b.total===undefined) continue;
+        const stored=Math.round(Number(b.total)*100);
+        const category=Object.values(b.tagLimits??{}).reduce((sum,v)=>sum+Math.round(Number(v)*100),0);
+        if (stored!==category) add('p',m.month+'　备份总预算 '+amount(stored)+'　分类额度合计 '+amount(category)+'。下方月预算按当前 Wallet 的分类额度计算。');
+      }
+    }
+    const legacy=[];
+    if (source.txs.some(t=>Object.hasOwn(t,'planId'))) legacy.push('流水与消费计划的关联');
+    if (source.plans.some(p=>['quiz','quizDone','quizAnswers'].some(k=>Object.hasOwn(p,k)))) legacy.push('旧版计划自查设置与答复');
+    if (source.tags.some(t=>['over','cool','quiz'].some(k=>Object.hasOwn(t,k)))) legacy.push('旧版标签规则');
+    if (Array.isArray(source.longTags) && source.longTags.length) legacy.push('旧版长期标签');
+    if (legacy.length) add('p','需确认如何保留的历史字段：'+legacy.join('、')+'。原备份完整保留。');
     add('p',Object.entries(labels).map(([k,label])=>label+' '+report.counts[k]).join(' · '));
     for (const [key,label] of [['assets_fen','总资产'],['safe_fen','安全余额'],['savings_fen','专项储蓄'],['free_fen','可安排资金'],['refund_fen','累计退款']]) add('p',label+'　'+amount(report[key]));
     add('h3','账户余额');
@@ -46,6 +71,12 @@ input.addEventListener('change', async () => {
       add('h3','旧版半月预算');
       for (const h of report.halfMonths) add('p',h.month+(h.half==='A'?' 上半月':' 下半月')+'　总预算 '+(h.budget_fen===null?'未设置':amount(h.budget_fen))+'　分类额度合计 '+amount(h.category_caps_fen));
     }
+    if (report.issues.length || legacy.length) {
+      add('p','本次只展示预览，正式迁移仍待处理和单独确认。');
+      return;
+    }
+    const {ledger}=openingLedger(source);
+    if(new TextEncoder().encode(JSON.stringify(ledger)).length>512*1024) return stop('LEDGER-SIZE','账本超过当前迁移容量 512 KiB，请保留完整备份。');
     add('p','拟迁移范围包括账户、金额、流水明细与备注、标签、预算、计划、专项储蓄和资金备忘。操作停留在预览。');
   } catch (e) {
     // Only display validator-owned messages. Parser and browser errors may contain input or file names.
