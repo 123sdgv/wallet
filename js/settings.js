@@ -201,8 +201,8 @@ function viewData(back) {
   </div>
   <input type="file" id="importJson" accept="application/json,.json" class="hidden">
   <div class="card list-card">
-    ${globalThis.walletSandbox ? '' : row('clearTxOnly', '清空流水', true)}
-    ${globalThis.walletSandbox ? '' : row('resetAll', '恢复初始', true)}
+    ${globalThis.walletSandbox && !walletSandbox.allowLocalClear ? '' : row('clearTxOnly', '清空流水', true)}
+    ${globalThis.walletSandbox && !walletSandbox.allowLocalClear ? '' : row('resetAll', '恢复初始', true)}
   </div>`;
 }
 
@@ -244,6 +244,7 @@ async function showReconciliation() {
       line('总资产', amount(report.assets_fen)) + line('安全余额', amount(report.safe_fen)) +
       line('专项储蓄', amount(report.savings_fen)) + line('可安排资金', amount(report.free_fen)) +
       line('累计退款', amount(report.refund_fen)) +
+      '<details><summary>迁移预览与数据范围</summary><p>拟迁移账户、流水及备注、标签、预算、计划、储蓄和资金备忘。本次仅在本机核对。正式迁移需要另行确认。</p></details>' +
       '<details><summary>各账户余额</summary>' + report.accounts.map(a => line(a.name, amount(a.balance_fen))).join('') + '</details>' +
       '<details><summary>逐月核对</summary>' + months + '</details>' +
       report.issues.map(text => line('需核对', text)).join(''));
@@ -274,9 +275,9 @@ function bindDataPanel() {
     if (await saveFile('流水导出-' + today() + '.csv', new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }))) toast('已导出');
   };
 
-  if (globalThis.walletSandbox) return;
-  $('importJsonBtn').onclick = () => $('importJson').click();
-  $('importJson').onchange = async e => {
+  if (globalThis.walletSandbox && !walletSandbox.allowLocalClear) return;
+  if ($('importJsonBtn')) $('importJsonBtn').onclick = () => $('importJson').click();
+  if (!globalThis.walletSandbox) $('importJson').onchange = async e => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
@@ -302,6 +303,7 @@ function bindDataPanel() {
 
   $('clearTxOnly').onclick = () => {
     if (!confirm('确定清空所有流水吗？这不会自动恢复账户余额，建议先导出备份。')) return;
+    globalThis.walletSandbox?.beforeLocalClear();
     S.txs = [];
     save();
     toast('流水已清空');
@@ -310,6 +312,7 @@ function bindDataPanel() {
 
   $('resetAll').onclick = () => {
     if (!confirm('确定恢复初始吗？当前全部数据会被覆盖，建议先导出备份。')) return;
+    globalThis.walletSandbox?.beforeLocalClear();
     S = DEFAULT();
     save();
     page = 'home';

@@ -366,5 +366,77 @@ test('complete ledger reads require a separate scope and return only the request
     assert.equal((await ledger('get_financial_records',{collection:'accounts'})).records[0].balance,100.55);
     assert.equal((await ledger('get_financial_records',{collection:'memos'})).records[0].text,'fixture memo');
     assert.equal((await call('add_test_expense',{operation_id:randomUUID(),expected_revision:0,amount_fen:1},full)).status,403);
+
+    const origin=issuer.replace('wallet-mcp-dev.','wallet-sync-dev.'), redirect=origin+'/full/connect.html';
+    const reg=await fetchTest('/oauth/register',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},
+      body:JSON.stringify({redirect_uris:[redirect],grant_types:['authorization_code','refresh_token'],token_endpoint_auth_method:'none'})});
+    assert.equal(reg.status,201);
+    const phoneClient=(await reg.json()).client_id;
+    const start=await begin('wallet:read wallet:ledger:read wallet:device:sync',{client_id:phoneClient,redirect_uri:redirect});
+    const markup=await start.page.text();
+    const allowed=await decide({cookie:start.page.headers.get('Set-Cookie').split(';')[0],handle:markup.match(/name="handle" value="([^"]+)"/)[1]},{remember:'30'});
+    const args={client:phoneClient,verifier:start.verifier,code:new URL(allowed.headers.get('Location')).searchParams.get('code')};
+    const device=await fetchTest('/device/full/connect',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(args)});
+    assert.equal(device.status,200); assert.match(device.headers.get('set-cookie'),/^__Host-wallet-full-device=/);
+    const token=(await device.json()).access_token, phoneHeaders={Origin:origin,Authorization:'Bearer '+token,'Content-Type':'application/json'};
+    assert.equal((await fetchTest('/mcp/phone',{headers:phoneHeaders})).status,403);
+    assert.equal((await fetchTest('/mcp/phone/ledger',{headers:{...phoneHeaders,Authorization:'Bearer '+full}})).status,401);
+    const snapshot=await (await fetchTest('/mcp/phone/ledger',{headers:phoneHeaders})).json();
+    assert.equal(snapshot.revision,1);assert.equal(snapshot.ledger.txs[0].amount,-0.55);
+    snapshot.ledger.memos.push({id:'from-phone',text:'device fixture',ts:2});
+    const posted=await fetchTest('/mcp/phone/ledger',{method:'POST',headers:phoneHeaders,body:JSON.stringify({
+      expected_revision:1,operation_id:randomUUID(),ledger:snapshot.ledger})});
+    assert.equal((await posted.json()).receipt_revision,2);
+    const memos=await ledger('get_financial_records',{collection:'memos'});
+    assert.ok(memos.records.some(m=>m.id==='from-phone'));assert.equal(memos.revision,2);
   } finally { await runtime.setOptions(options); }
+});
+
+test('remembered phone rotates its HttpOnly cookie with a fixed deadline and can be revoked locally or remotely', async () => {
+  const origin=issuer.replace('wallet-mcp-dev.','wallet-sync-dev.'), redirect=origin+'/connect.html';
+  const browser=(path,body,cookie,source=origin)=>fetchTest('/device/'+path,{method:'POST',
+    headers:{Origin:source,'Content-Type':'application/json',...(cookie && {Cookie:cookie})},body:JSON.stringify(body)});
+  const access=token=>fetchTest('/mcp/phone',{headers:{Origin:origin,Authorization:'Bearer '+token}});
+  async function enrollBrowser() {
+    const registration=await fetchTest('/oauth/register',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({redirect_uris:[redirect],grant_types:['authorization_code','refresh_token'],token_endpoint_auth_method:'none'})});
+    const client=(await registration.json()).client_id;
+    const req=await begin('wallet:read wallet:write',{client_id:client,redirect_uri:redirect});
+    const html=await req.page.text();
+    assert.match(html,/记住这台设备 30 天/);
+    const handle=html.match(/name="handle" value="([^"]+)"/)[1];
+    const approval=await decide({handle,cookie:req.page.headers.get('set-cookie').split(';')[0]},{remember:'30'});
+    const code=new URL(approval.headers.get('Location')).searchParams.get('code');
+    const response=await browser('connect',{code,client,verifier:req.verifier});
+    assert.equal(response.status,200);
+    const cookie=response.headers.get('Set-Cookie');
+    assert.match(cookie,/__Host-wallet-device=/);
+    assert.match(cookie,/HttpOnly; SameSite=Strict/);
+    const data=await response.json();
+    assert.ok(!data.refresh_token && data.expires_in<=900);
+    assert.ok(Math.abs(data.device_until-Math.floor(Date.now()/1000)-30*86400)<5);
+    return {cookie:cookie.split(';')[0],...data};
+  }
+  const first=await enrollBrowser();
+  assert.equal((await browser('resume',{},first.cookie,'https://other.invalid')).status,403);
+  const rotated=await browser('resume',{},first.cookie);
+  assert.equal(rotated.status,200);
+  const next=await rotated.json();
+  assert.equal(next.device_until,first.device_until);
+  const newCookie=rotated.headers.get('Set-Cookie').split(';')[0];
+  assert.notEqual(newCookie,first.cookie);
+  assert.equal((await access(next.access_token)).status,200);
+  assert.equal((await browser('revoke',{},newCookie)).status,200);
+  assert.equal((await access(next.access_token)).status,401);
+  assert.equal((await browser('resume',{},newCookie)).status,401);
+  const second=await enrollBrowser(), db=await runtime.getD1Database('DB');
+  await db.prepare('UPDATE wallet_devices SET expires_at=0').run();
+  assert.equal((await access(second.access_token)).status,401);
+  assert.equal((await browser('resume',{},second.cookie)).status,401);
+  const third=await enrollBrowser();
+  assert.equal((await post('/devices',{action:'revoke',owner_key:'bad'},{Origin:issuer})).status,403);
+  assert.equal((await access(third.access_token)).status,200);
+  assert.equal((await post('/devices',{action:'revoke',owner_key:ownerKey},{Origin:issuer})).status,200);
+  assert.equal((await access(third.access_token)).status,401);
+  assert.equal((await browser('resume',{},third.cookie)).status,401);
 });

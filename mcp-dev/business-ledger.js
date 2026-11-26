@@ -4,7 +4,7 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{1
 const id = /^[a-zA-Z0-9_-]{1,96}$/;
 const columns = ['kind', 'amount_fen', 'account_id', 'to_account_id', 'local_date', 'tag_id', 'off_budget', 'item', 'note'];
 const allowed = new Set(['expected_revision', 'operation_id', ...columns]);
-const head = 'SELECT COALESCE(MAX(revision), 0) AS revision FROM wallet_transactions';
+const head = 'SELECT revision FROM wallet_latest_version';
 
 function validRevision(value) { return Number.isSafeInteger(value) && value >= 0; }
 function validId(value) { return typeof value === 'string' && id.test(value); }
@@ -38,10 +38,13 @@ export async function recordTransaction(db, op) {
       FROM (${head}) h
       JOIN wallet_accounts a ON a.id = ?
       LEFT JOIN wallet_accounts b ON b.id = ?
-     WHERE h.revision = ? AND (? IS NULL OR b.id IS NOT NULL)
+     WHERE (NOT EXISTS(SELECT 1 FROM wallet_opening) OR (
+         EXISTS(SELECT 1 FROM wallet_effective_opening o,json_each(o.ledger_json,'$.accounts') j WHERE json_extract(j.value,'$.id')=a.id)
+         AND (b.id IS NULL OR EXISTS(SELECT 1 FROM wallet_effective_opening o,json_each(o.ledger_json,'$.accounts') j WHERE json_extract(j.value,'$.id')=b.id))
+       )) AND NOT EXISTS (SELECT 1 FROM wallet_checkpoint_receipts WHERE id=?) AND h.revision = ? AND (? IS NULL OR b.id IS NOT NULL)
        AND abs(a.balance_fen + ?) <= ? AND (b.id IS NULL OR abs(b.balance_fen + ?) <= ?)
     ON CONFLICT(operation_id) DO NOTHING RETURNING revision
-  `).bind(op.operation_id, ...fields, op.account_id, op.to_account_id ?? null, op.expected_revision,
+  `).bind(op.operation_id, ...fields, op.account_id, op.to_account_id ?? null, op.operation_id, op.expected_revision,
     op.to_account_id ?? null, ['income', 'refund'].includes(op.kind) ? op.amount_fen : -op.amount_fen,
     amountLimit, op.amount_fen, amountLimit);
   const [added, receipt, version] = await session.batch([insert,
@@ -59,7 +62,7 @@ export async function recordTransaction(db, op) {
 export async function readAccountBalances(db) {
   const session = db.withSession('first-primary');
   const [latest, accounts] = await session.batch([session.prepare(head),
-    session.prepare('SELECT id, balance_fen FROM wallet_accounts ORDER BY id')]);
+    session.prepare("SELECT id, balance_fen FROM wallet_accounts a WHERE NOT EXISTS(SELECT 1 FROM wallet_effective_opening) OR EXISTS(SELECT 1 FROM wallet_effective_opening o,json_each(o.ledger_json,'$.accounts') j WHERE json_extract(j.value,'$.id')=a.id) ORDER BY id")]);
   return { revision: latest.results[0].revision, accounts: accounts.results };
 }
 
@@ -68,13 +71,14 @@ export async function readTransactionChanges(db, after, through = null, limit = 
   if (!validRevision(after) || (through !== null && (!validRevision(through) || through < after))
       || !Number.isInteger(limit) || limit < 1 || limit > 100) return { error: 'invalid_cursor' };
   const session = db.withSession('first-primary');
-  const [latest, changes] = await session.batch([session.prepare(head), session.prepare(`
+  const [latest, changes, checkpoint] = await session.batch([session.prepare(head), session.prepare(`
     SELECT * FROM wallet_transactions WHERE revision > ? AND revision <= COALESCE(?, (${head}))
     ORDER BY revision LIMIT ?
-  `).bind(after, through, limit)]);
+  `).bind(after, through, limit), session.prepare('SELECT revision FROM wallet_checkpoints WHERE singleton=1')]);
   const revision = latest.results[0].revision;
   if (after > revision || (through !== null && through > revision)) return { error: 'invalid_cursor' };
   const throughRevision = through ?? revision;
+  if (checkpoint.results[0]?.revision > after) return {error:'snapshot_required',revision};
   const next = changes.results.at(-1)?.revision ?? after;
   return { through_revision: throughRevision, changes: changes.results, next_revision: next, has_more: next < throughRevision };
 }

@@ -1,5 +1,8 @@
 import { OAuthResourceServer, AuthorizationError } from '@cloudflare/workers-oauth-provider';
-import { consent, fingerprint, makeAuthorizationServer, phoneOrigin, OWNER } from './auth.js';
+import { deadline, deviceSession, manageDevices } from './device.js';
+import { readFullState, acceptFullState } from './full-sync.js';
+import { FULL_READ } from './financial-read.js';
+import { DEVICE_SYNC, consent, fingerprint, makeAuthorizationServer, phoneOrigin, OWNER } from './auth.js';
 import { READ, WRITE, validExpense, serveMcp } from './mcp.js';
 import { addExpense, readChanges } from './ledger.js';
 import { ownerSetup } from './owner-setup.js';
@@ -8,16 +11,16 @@ const MAX_BYTES = 16 * 1024;
 const devIssuer = /^https:\/\/wallet-mcp-dev\.[a-z0-9-]+\.workers\.dev$/;
 
 // Bound chunked and fixed-length requests before any library reads a body.
-async function bounded(request) {
+async function bounded(request, limit) {
   if (!request.body) return request;
-  if (Number(request.headers.get('Content-Length')) > MAX_BYTES) return null;
+  if (Number(request.headers.get('Content-Length')) > limit) return null;
   const reader = request.body.getReader();
-  const bytes = new Uint8Array(MAX_BYTES);
+  const bytes = new Uint8Array(limit);
   let offset = 0;
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
-    if (value.length > MAX_BYTES - offset) { await reader.cancel(); return null; }
+    if (value.length > limit - offset) { await reader.cancel(); return null; }
     bytes.set(value, offset);
     offset += value.length;
   }
@@ -30,11 +33,11 @@ async function route(request, env, ctx) {
   if (url.origin !== env.ISSUER) return new Response(null, { status: 404 });
   const origin = request.headers.get('Origin');
   const phoneRequest = origin === phoneOrigin(env.ISSUER) && phonePath(url.pathname);
-  if (origin && origin !== env.ISSUER && origin !== 'https://chatgpt.com' && !phoneRequest) return new Response(null, { status: 403 });
+  if (origin && origin !== env.ISSUER && origin !== 'https://chatgpt.com' && !phoneRequest && !(origin === phoneOrigin(env.ISSUER) && devicePath(url.pathname))) return new Response(null, { status: 403 });
   const limit = await env.LIMITER.limit({ key: 'wallet-mcp-dev:' + (request.headers.get('CF-Connecting-IP') || 'local') });
   if (!limit.success) return new Response(null, { status: 429, headers: { 'Retry-After': '60' } });
   if (phoneRequest && request.method === 'OPTIONS') return new Response(null, { status: 204 });
-  request = await bounded(request);
+  request = await bounded(request, env.BUSINESS_DB && url.pathname === '/mcp/phone/ledger' ? 540 * 1024 : MAX_BYTES);
   if (!request) return new Response(null, { status: 413 });
 
   const issuer = env.ISSUER;
@@ -50,13 +53,31 @@ async function route(request, env, ctx) {
     });
   }
   const authorization = makeAuthorizationServer(issuer, Boolean(env.BUSINESS_DB));
-  if (url.pathname === '/mcp/phone') {
+  if (url.pathname === '/devices') return manageDevices(request, env);
+  if (devicePath(url.pathname)) {
+    return deviceSession(request, env, ctx, authorization, phoneOrigin(issuer), fingerprint);
+  }
+  if (url.pathname === '/mcp/phone' || url.pathname === '/mcp/phone/ledger') {
     if (!phoneRequest) return new Response(null, { status: 403 });
     const match = /^Bearer (\S+)$/.exec(request.headers.get('Authorization') || '');
     const auth = match && await authorization.validateToken(issuer + '/mcp', match[1], env);
     if (!auth || auth.userId !== OWNER || auth.props?.clientSurface !== 'phone'
         || auth.props.generation !== await fingerprint(env.OWNER_KEY)) return new Response(null, { status: 401 });
+    if (auth.props.device && !await deadline(env, auth.props.device)) return new Response(null, {status:401});
     if (!auth.scope.includes(READ)) return new Response(null, { status: 403 });
+    if (url.pathname === '/mcp/phone/ledger') {
+      if (!env.BUSINESS_DB || !auth.props.full || !auth.scope.includes(FULL_READ)) return new Response(null,{status:403});
+      if (request.method === 'GET') {
+        const rev=url.searchParams.get('revision');
+        if (rev !== null && !/^(0|[1-9]\d{0,14})$/.test(rev)) return new Response(null,{status:400});
+        return Response.json(await readFullState(env.BUSINESS_DB,rev === null ? -1 : Number(rev)));
+      }
+      if (request.method !== 'POST') return new Response(null,{status:405});
+      if (!auth.scope.includes(DEVICE_SYNC)) return new Response(null,{status:403});
+      if (request.headers.get('Content-Type')?.split(';')[0] !== 'application/json') return new Response(null,{status:415});
+      return Response.json(await acceptFullState(env.BUSINESS_DB,await request.json().catch(()=>null)));
+    }
+    if (auth.props.full) return new Response(null,{status:403});
     if (request.method === 'GET') {
       const after = url.searchParams.get('after') ?? '0';
       if (!/^(0|[1-9][0-9]{0,4})$/.test(after)) return new Response(null, { status: 400 });
@@ -89,11 +110,19 @@ async function route(request, env, ctx) {
     }
     return resource.fetch(request, env, ctx);
   }
-  return authorization.fetch(request, env, ctx);
+  const response = await authorization.fetch(request, env, ctx);
+  if (env.BUSINESS_DB && request.method === 'GET' && url.pathname === '/.well-known/oauth-authorization-server' && response.ok) {
+    const metadata=await response.json();
+    metadata.scopes_supported=metadata.scopes_supported.filter(scope=>scope!==DEVICE_SYNC);
+    return Response.json(metadata);
+  }
+  return response;
 }
 
+function devicePath(path) { return /^\/device\/(full\/)?(connect|resume|revoke)$/.test(path); }
+
 function phonePath(path) {
-  return ['/oauth/register', '/oauth/token', '/oauth/revoke', '/mcp/phone'].includes(path);
+  return ['/oauth/register', '/oauth/token', '/oauth/revoke', '/mcp/phone', '/mcp/phone/ledger'].includes(path);
 }
 
 export default {
@@ -109,7 +138,7 @@ export default {
       headers.append('Vary', 'Origin');
     }
     const isConsent = new URL(request.url).pathname === '/authorize';
-    const isForm = isConsent && request.method === 'GET' && response.ok && headers.get('Content-Type')?.startsWith('text/html');
+    const isForm = (isConsent || new URL(request.url).pathname === '/devices') && request.method === 'GET' && response.ok && headers.get('Content-Type')?.startsWith('text/html');
     headers.set('Cache-Control', 'private, no-store');
     // The browser needs the page origin for a same-origin form POST. Keep OAuth query parameters private.
     headers.set('Referrer-Policy', isForm ? 'strict-origin' : 'no-referrer');

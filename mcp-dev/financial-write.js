@@ -17,16 +17,21 @@ export const postingTool = {
 
 export async function addLedgerPosting(db,args) {
   const session=db.withSession('first-primary');
-  const opening=await session.prepare('SELECT singleton FROM wallet_opening WHERE singleton=1').first();
+  const opening=await session.prepare('SELECT ledger_json FROM wallet_effective_opening WHERE singleton=1').first();
   if (!opening) return {error:'ledger_not_initialized'};
-  if (args?.tag_id !== undefined && args.tag_id !== null) {
-    if (typeof args.tag_id !== 'string') return {error:'invalid_transaction'};
-    const tag=await session.prepare(`SELECT 1 AS present FROM wallet_opening o,json_each(o.ledger_json,'$.tags') j
-      WHERE o.singleton=1 AND json_extract(j.value,'$.id')=? LIMIT 1`).bind(args.tag_id).first();
-    if (!tag) return {error:'unknown_tag'};
+  if (!args || typeof args.operation_id !== 'string') return {error:'invalid_transaction'};
+  const prior=await session.prepare('SELECT 1 AS present FROM wallet_transactions WHERE operation_id=?').bind(args.operation_id).first();
+  if (!prior) {
+    const current=JSON.parse(opening.ledger_json);
+    const ids=new Set(current.accounts.map(a=>a.id));
+    if (!ids.has(args.account_id) || (args.to_account_id != null && !ids.has(args.to_account_id))) return {error:'invalid_account_or_balance'};
+    if (args.tag_id != null && !current.tags.some(t=>t.id===args.tag_id)) return {error:'unknown_tag'};
+    if (current.txs.some(t=>t.id===args.operation_id)) return {error:'operation_id_reused'};
   }
   const receipt=await recordTransaction(db,args);
   if (receipt.error) return receipt;
+  const captured = await session.prepare('SELECT account AS id,before_fen,after_fen FROM wallet_posting_balances WHERE operation_id=? ORDER BY account').bind(args.operation_id).all();
+  if (captured.results.length) return {...receipt,transaction_id:receipt.operation_id,currency:'CNY',account_changes:captured.results};
   // Reconstruct this receipt's balances, even if another transaction committed before a retry.
   const result=await session.prepare(`WITH diffs(account,rev,delta) AS (
     SELECT account_id,revision,CASE kind WHEN 'refund' THEN amount_fen WHEN 'income' THEN amount_fen ELSE -amount_fen END

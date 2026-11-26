@@ -14,3 +14,9 @@ CREATE TABLE IF NOT EXISTS wallet_probe (
 INSERT INTO wallet_probe (revision, operation_id, expense_fen, balance_fen, recorded_at)
 VALUES (0, NULL, 0, 10000, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 ON CONFLICT(revision) DO NOTHING;
+
+-- Only the identifier and the absolute device authorization deadline are retained.
+CREATE TABLE IF NOT EXISTS wallet_devices (
+  id TEXT PRIMARY KEY,
+  expires_at INTEGER NOT NULL
+) STRICT;

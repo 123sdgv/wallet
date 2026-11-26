@@ -18,6 +18,9 @@ function pick(record, names, nested = []) {
     if (!Object.hasOwn(record, key)) continue;
     const value = record[key];
     if (!scalar(value) || (typeof value === 'number' && !Number.isFinite(value))) throw Error('invalid_financial_field');
+    if (['id','acc','accountId','toAccountId','tagId'].includes(key) && value != null &&
+        (typeof value!=='string' || !/^[a-zA-Z0-9_-]{1,96}$/.test(value))) throw Error('invalid_identifier');
+    if (key==='color' && (typeof value!=='string' || !/^#[a-fA-F0-9]{3,8}$/.test(value))) throw Error('invalid_color');
     result[key] = value;
   }
   return result;
