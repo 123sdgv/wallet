@@ -21,7 +21,7 @@ npm test
 1. 在确认的免费账户创建 D1 `wallet-db-dev`、KV `wallet-oauth-dev` 和 Worker `wallet-mcp-dev`。在新建的空测试 D1 执行 `schema.sql`。重复执行会保留测试记录。
 2. `npm run build` 生成 Worker ES 模块 `dist/worker.mjs`。使用模块模式，兼容日期 `2026-07-01`，兼容标志 `global_fetch_strictly_public`。关闭 Workers Logs、调用日志和持久化调试采样。仅启用这个开发 Worker 的 workers.dev 地址，关闭版本预览 URL。
 3. 绑定 D1 为 `DB`、KV 为 `OAUTH_KV`；为此测试项目选独立命名空间的限流绑定 `LIMITER`，建议每个来源每分钟 60 次。设置文本变量 `ISSUER` 为 Worker 的完整 HTTPS 源（不含末尾斜杠）。
-4. 所有者用自己的密码管理器生成并保管 32 字节随机密钥，格式为 64 位小写十六进制。通过 Cloudflare 控制台的加密 Secret 字段写入该 Worker 的 `OWNER_KEY`。授权时仅在自己这个 Worker 的 HTTPS 页面输入。在聊天、Git、命令参数或普通环境变量中粘贴密钥会暴露它。密钥或必要绑定缺失时服务返回 503。
+4. 打开此开发 Worker 的 `/setup-key`，点“生成并选中密钥”，将本机生成的密钥保存在密码管理器中；也可以直接用密码管理器生成 32 字节随机密钥，格式为 64 位小写十六进制。通过 Cloudflare 控制台的加密 Secret 字段写入该 Worker 的 `OWNER_KEY`。授权时仅在自己这个 Worker 的 HTTPS 页面输入。在聊天、Git、命令参数或普通环境变量中粘贴密钥会暴露它。密钥格式错误或缺失时，授权和持凭证的账本操作返回 503，公开的 OAuth 发现地址仍可读取。
 5. 先向 `/mcp` 发起无凭证请求，预期 401 和 OAuth 发现地址。验证发现元数据中的 issuer、resource 及回调；只有应用管理页显示的回调与实现允许的 ChatGPT 稳定回调完全一致时再授权。出现不同回调，先核实文档、调整精确匹配并重跑测试。
 6. 在 ChatGPT 网页的 Plugins → + → Add custom MCP server 中创建个人连接。Server URL 填开发 Worker 的 `/mcp`，选择 OAuth 和动态客户端注册。安装到个人账户，按提示授权。只读工具使用 `wallet:read`，写工具另需 `wallet:write`。令牌有效期 15 分钟，到期重新授权。
 

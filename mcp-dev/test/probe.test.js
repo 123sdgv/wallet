@@ -217,6 +217,34 @@ test('persisted receipt survives a cold restart; rotated or missing owner creden
   await runtime.setOptions(options);
 });
 
+test('public discovery and challenge work with a malformed key; grants and ledger stay closed', async () => {
+  await runtime.setOptions({ ...options, bindings: { ...options.bindings, OWNER_KEY: 'invalid-test-fixture' } });
+  try {
+    for (const path of ['/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource/mcp']) {
+      const res = await fetchTest(path);
+      assert.equal(res.status, 200);
+      assert.equal((await res.json()).resource, issuer + '/mcp');
+    }
+    assert.equal((await (await fetchTest('/.well-known/oauth-authorization-server')).json()).issuer, issuer);
+    const res = await call('get_test_balance', {});
+    assert.equal(res.status, 401);
+    assert.match(res.headers.get('WWW-Authenticate'), /resource_metadata=/);
+    assert.equal((await call('get_test_balance', {}, writable)).status, 503);
+    assert.equal((await post('/oauth/token', {})).status, 503);
+    assert.equal((await fetchTest('/authorize')).status, 503);
+    const setup = await fetchTest('/setup-key');
+    const html = await setup.text();
+    const script = html.match(/<script>([\s\S]+?)<\/script>/)[1];
+    const hash = createHash('sha256').update(script).digest('base64');
+    assert.ok(setup.headers.get('Content-Security-Policy').includes("'sha256-" + hash + "'"));
+    assert.match(setup.headers.get('Content-Security-Policy'), /connect-src 'none'/);
+    const input = { focus() {}, select() {} }, button = {};
+    vm.runInNewContext(script, { crypto, document: { querySelector: id => id === '#key' ? input : button } });
+    button.onclick();
+    assert.match(input.value, /^[a-f0-9]{64}$/);
+  } finally { await runtime.setOptions(options); }
+});
+
 test('an expired local token record cannot read or write', async () => {
   const token = await grant('wallet:read wallet:write');
   const kv = await runtime.getKVNamespace('OAUTH_KV');

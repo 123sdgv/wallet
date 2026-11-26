@@ -1,6 +1,7 @@
 import { OAuthResourceServer, AuthorizationError } from '@cloudflare/workers-oauth-provider';
 import { consent, fingerprint, makeAuthorizationServer, OWNER } from './auth.js';
 import { READ, serveMcp } from './mcp.js';
+import { ownerSetup } from './owner-setup.js';
 
 const MAX_BYTES = 16 * 1024;
 const devIssuer = /^https:\/\/wallet-mcp-dev\.[a-z0-9-]+\.workers\.dev$/;
@@ -23,8 +24,7 @@ async function bounded(request) {
 }
 
 async function route(request, env, ctx) {
-  if (!devIssuer.test(env.ISSUER) || !/^[a-f0-9]{64}$/.test(env.OWNER_KEY ?? '')
-      || !env.DB || !env.OAUTH_KV || !env.LIMITER) return new Response(null, { status: 503 });
+  if (!devIssuer.test(env.ISSUER) || !env.DB || !env.OAUTH_KV || !env.LIMITER) return new Response(null, { status: 503 });
   const url = new URL(request.url);
   if (url.origin !== env.ISSUER) return new Response(null, { status: 404 });
   const origin = request.headers.get('Origin');
@@ -35,6 +35,17 @@ async function route(request, env, ctx) {
   if (!request) return new Response(null, { status: 413 });
 
   const issuer = env.ISSUER;
+  if (url.pathname === '/setup-key' && request.method === 'GET') return ownerSetup();
+  const resourceMetadata = '/.well-known/oauth-protected-resource';
+  const publicMetadata = [resourceMetadata, resourceMetadata + '/mcp', '/.well-known/oauth-authorization-server'].includes(url.pathname)
+    && ['GET', 'HEAD', 'OPTIONS'].includes(request.method);
+  const needsChallenge = url.pathname === '/mcp' && !request.headers.has('Authorization');
+  const ready = typeof env.OWNER_KEY === 'string' && /^[a-f0-9]{64}$/.test(env.OWNER_KEY);
+  if (!ready && !publicMetadata && !needsChallenge && url.pathname !== '/oauth/register') {
+    return new Response('Wallet 测试服务待配置：请将 OWNER_KEY 设为 64 位小写十六进制随机密钥。', {
+      status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  }
   const authorization = makeAuthorizationServer(issuer);
   if (url.pathname === '/authorize') return consent(request, env, authorization.getOAuthApi(env));
   if (url.pathname === '/mcp' || url.pathname === '/.well-known/oauth-protected-resource/mcp'
@@ -49,6 +60,11 @@ async function route(request, env, ctx) {
       },
       handler: { fetch: (req, bindings, context) => serveMcp(req, bindings.DB, context.auth) },
     });
+    // Some clients try the origin-level discovery URL before the path-specific URL.
+    if (url.pathname === resourceMetadata && publicMetadata) {
+      const canonical = new URL(resourceMetadata + '/mcp', issuer);
+      return resource.fetch(new Request(canonical, { method: request.method, headers: request.headers }), env, ctx);
+    }
     return resource.fetch(request, env, ctx);
   }
   return authorization.fetch(request, env, ctx);
