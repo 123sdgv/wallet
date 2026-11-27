@@ -51,6 +51,7 @@ test('opening initialization is atomic and retries never overwrite later account
   const sql=await readFile(new URL('../business-schema.sql',import.meta.url),'utf8');
   for(const statement of sql.replace(/^--.*$/gm,'').trim().split(/\n\s*\n/)) await db.prepare(statement).run();
   const s=fixture();
+  s.plans[0].quizAnswers={first:'private-quiz-marker'};
   const parallel=await Promise.all([initializeOpeningLedger(db,s),initializeOpeningLedger(db,s)]);
   assert.deepEqual(parallel.map(r=>r.replayed).sort(),[false,true]);
   assert.equal((await readAccountBalances(db)).accounts.find(a=>a.id==='cash').balance_fen,8000);
@@ -68,8 +69,31 @@ test('opening initialization is atomic and retries never overwrite later account
   const changed=fixture();changed.accounts[0].balance=95;
   assert.equal((await initializeOpeningLedger(db,changed)).error,'opening_already_in_use');
   const stored=await db.prepare('SELECT ledger_json FROM wallet_opening').first();
-  assert.doesNotMatch(stored.ledger_json,/local-only-marker|setPanel/);
+  assert.doesNotMatch(stored.ledger_json,/local-only-marker|private-quiz-marker|quizAnswers|setPanel/);
   assert.deepEqual(JSON.parse(stored.ledger_json),openingLedger(s).ledger);
+});
+
+test('migration omits legacy self-checks while preserving plan links, retired references and both budget amounts', () => {
+  const source=fixture();
+  source.settings.quizAmount=100;
+  Object.assign(source.tags[0], {over:true, cool:7, quiz:true});
+  Object.assign(source.plans[0], {quiz:true, quizDone:true, quizAnswers:{example:'synthetic-answer'}});
+  Object.assign(source.txs[0], {accountId:'retired', planId:'p'});
+  Object.assign(source.budgets['2026-11'], {total:31, accAlloc:{retired:6}});
+  const original=structuredClone(source);
+  const {ledger,report}=openingLedger(source);
+  assert.deepEqual(source,original);
+  assert.deepEqual(report,reconcileWallet(ledger));
+  assert.deepEqual(report.issues,[]);
+  assert.deepEqual(report.budgetDifferences,[{month:'2026-11',stored_fen:3100,category_fen:2500}]);
+  assert.deepEqual(report.retiredHistory,{accounts:1,transactions:1});
+  assert.deepEqual(ledger.budgets,source.budgets);
+  assert.deepEqual(ledger.txs,source.txs);
+  assert.deepEqual(ledger.tags[0],{id:'daily',name:'虚拟',cool:7,over:true});
+  assert.doesNotMatch(JSON.stringify(ledger),/quiz|synthetic-answer/);
+  assert.throws(()=>openingLedger({...source,longTags:['unmapped']}),/unrecognized_long_tags/);
+  delete source.txs[0].accountId;
+  assert.throws(()=>openingLedger(source),/needs_review/);
 });
 
 test('historical half-month budgets retain independent totals, category limits and original keys', () => {

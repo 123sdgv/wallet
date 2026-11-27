@@ -248,6 +248,8 @@ async function showReconciliation() {
       '<details><summary>各账户余额</summary>' + report.accounts.map(a => line(a.name, amount(a.balance_fen))).join('') + '</details>' +
       '<details><summary>逐月核对</summary>' + months + '</details>' +
       (report.halfMonths.length ? '<details><summary>旧版半月预算</summary>'+report.halfMonths.map(h=>line(h.month+(h.half==='A'?' 上半月':' 下半月'),h.budget_fen===null?'未设置':amount(h.budget_fen))).join('')+'</details>' : '')+
+      (report.retiredHistory.transactions ? line('已移除账户的历史流水', report.retiredHistory.transactions+' 笔，保留原账户编号') : '')+
+      report.budgetDifferences.map(b => line(b.month+' 预算', '原总额 '+amount(b.stored_fen)+'，分类额度合计 '+amount(b.category_fen)+'，两项均保留')).join('')+
       report.issues.map(text => line('需核对', text)).join(''));
   } catch (error) { toast(error.message || '暂时无法核对此账本。'); }
 }

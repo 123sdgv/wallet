@@ -1,11 +1,12 @@
 import { reconcileWallet } from '../js/reconcile.mjs';
 
 const fields = {
-  accounts: 'id kind name balance note', tags: 'id name color',
-  txs: 'id ts type amount accountId toAccountId tagId item note date noBudget refunded',
+  accounts: 'id kind name balance note', tags: 'id name color cool over',
+  txs: 'id ts type amount accountId toAccountId tagId planId item note date noBudget refunded',
   plans: 'id status amount tagId accountId item date note inBudget createdAt',
   memos: 'id text ts', goals: 'id name target saved', log: 'id acc amt ts',
 };
+const excludedQuizFields = { tags: ['quiz'], plans: ['quiz', 'quizDone', 'quizAnswers'] };
 const scalar = value => ['number','string','boolean'].includes(typeof value) || value === null;
 function pick(record, names, nested = []) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) throw Error('invalid_record');
@@ -18,9 +19,11 @@ function pick(record, names, nested = []) {
     if (!Object.hasOwn(record, key)) continue;
     const value = record[key];
     if (!scalar(value) || (typeof value === 'number' && !Number.isFinite(value))) throw Error('invalid_financial_field');
-    if (['id','acc','accountId','toAccountId','tagId'].includes(key) && value != null &&
+    if (['id','acc','accountId','toAccountId','tagId','planId'].includes(key) && value != null &&
         (typeof value!=='string' || !/^[a-zA-Z0-9_-]{1,96}$/.test(value))) throw Error('invalid_identifier');
     if (key==='color' && (typeof value!=='string' || !/^#[a-fA-F0-9]{3,8}$/.test(value))) throw Error('invalid_color');
+    if (key==='over' && typeof value!=='boolean') throw Error('invalid_financial_field');
+    if (key==='cool' && (!Number.isSafeInteger(value) || value<0)) throw Error('invalid_financial_field');
     result[key] = value;
   }
   return result;
@@ -39,12 +42,17 @@ function moneyMap(map = {}) {
 export function openingLedger(source) {
   const report = reconcileWallet(source);
   if (report.issues.length) throw Error('opening_needs_review');
-  const ledger = { settings: pick(source.settings, 'safe'), safeAlloc: moneyMap(source.safeAlloc) };
-  for (const kind of ['accounts','tags','txs','plans','memos']) ledger[kind] = source[kind].map(x => pick(x, fields[kind]));
+  if (source.longTags !== undefined && (!Array.isArray(source.longTags) || source.longTags.length)) throw Error('unrecognized_long_tags');
+  const ledger = { settings: pick(source.settings, 'safe', ['quizAmount']), safeAlloc: moneyMap(source.safeAlloc) };
+  for (const kind of ['accounts','tags','txs','plans','memos']) {
+    ledger[kind] = source[kind].map(x => pick(x, fields[kind], excludedQuizFields[kind]));
+  }
   ledger.goals = source.goals.map(g => ({ ...pick(g, fields.goals, ['log']), log: g.log.map(x => pick(x, fields.log)) }));
   ledger.budgets = Object.fromEntries(Object.keys(source.budgets).sort().map(month => {
     const b = source.budgets[month];
-    return [month, { ...pick(b, 'total set', ['tagLimits']), tagLimits: moneyMap(b.tagLimits) }];
+    const period = { ...pick(b, 'total set', ['tagLimits','accAlloc']), tagLimits: moneyMap(b.tagLimits) };
+    if (Object.hasOwn(b,'accAlloc')) period.accAlloc = moneyMap(b.accAlloc);
+    return [month, period];
   }));
   return { ledger, report };
 }

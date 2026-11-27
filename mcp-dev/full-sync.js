@@ -23,10 +23,24 @@ export async function readFullState(db, knownRevision = -1) {
 
 export async function acceptFullState(db, args) {
   if (!args || !uuid.test(args.operation_id) || !Number.isSafeInteger(args.expected_revision) || args.expected_revision<0) return {error:'invalid_arguments'};
-  let ledger;
-  try { ({ledger} = openingLedger(args.ledger)); } catch { return {error:'ledger_needs_review'}; }
+  let ledger, report;
+  try { ({ledger, report} = openingLedger(args.ledger)); } catch { return {error:'ledger_needs_review'}; }
   const json=JSON.stringify(ledger), bytes=new TextEncoder().encode(json);
   if (bytes.length>512*1024) return {error:'ledger_too_large'};
+  if (report.retiredHistory.transactions) {
+    const current = await readFullState(db);
+    // Stale submissions proceed to the receipt check, which can only replay or reject them.
+    if (current.revision === args.expected_revision && current.ledger) {
+      const active = new Set(ledger.accounts.map(a => a.id));
+      const previous = new Map(current.ledger.txs.map(tx => [tx.id, tx]));
+      for (const tx of ledger.txs) {
+        const prior = previous.get(tx.id);
+        if (!active.has(tx.accountId) && tx.accountId !== prior?.accountId) return {error:'ledger_needs_review'};
+        if (tx.type === 'transfer' && !active.has(tx.toAccountId) &&
+            (prior?.type !== 'transfer' || tx.toAccountId !== prior.toAccountId)) return {error:'ledger_needs_review'};
+      }
+    }
+  }
   const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),n=>n.toString(16).padStart(2,'0')).join('');
   const s=db.withSession('first-primary'), id=args.operation_id, next=args.expected_revision+1;
   // A receipt gates every side effect in the same D1 transaction. A replay cannot restore an earlier checkpoint.

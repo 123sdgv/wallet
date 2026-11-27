@@ -14,7 +14,9 @@ test('original Wallet edits and MCP transactions share a revision, keep earlier 
   t.after(()=>mf.dispose());
   const db=await mf.getD1Database('DB'), sql=await readFile(new URL('../business-schema.sql',import.meta.url),'utf8');
   for(const statement of sql.replace(/^--.*$/gm,'').trim().split(/\n\s*\n/)) await db.prepare(statement).run();
-  await initializeOpeningLedger(db,fixture());
+  const opening=fixture();
+  opening.txs.push({id:'historical',accountId:'former',type:'income',amount:1,date:'2026-11-20'});
+  await initializeOpeningLedger(db,opening);
   let book=initialFull(fixture);
   const sync=post=>exchangeFull({read:()=>book,persist:x=>book=structuredClone(x),pull:rev=>readFullState(db,rev??-1),post});
   const store=args=>acceptFullState(db,args);
@@ -22,14 +24,25 @@ test('original Wallet edits and MCP transactions share a revision, keep earlier 
   const change=structuredClone(book.ledger);
   change.memos.push({id:'memo',text:'虚拟备注',ts:1});
   change.tags.push({id:'tag',name:'测试',color:'#ffccdd'});
+  change.plans.push({id:'plan',item:'虚拟计划',quiz:true,quizAnswers:{answer:'synthetic-private-answer'}});
   change.accounts.push({id:'b',name:'第二账户',balance:0});
   book=editFull(book,change);
-  await assert.rejects(sync(async op=>{await store(op);throw Error('lost reply');}));
+  await assert.rejects(sync(async op=>{
+    assert.doesNotMatch(JSON.stringify(op),/quiz|synthetic-private-answer/);
+    await store(op);throw Error('lost reply');
+  }),/lost reply/);
   const oldFlight=structuredClone(book.flight);
   await sync(store);
   assert.equal(book.revision,1);
+  const stored=await db.prepare('SELECT ledger_json FROM wallet_checkpoints WHERE singleton=1').first();
+  assert.doesNotMatch(stored.ledger_json,/quiz|synthetic-private-answer/);
+  assert.deepEqual((await readFinancial(db,'get_financial_records',{collection:'plans'})).records,[{id:'plan',item:'虚拟计划'}]);
+  const invalid=structuredClone(book.base);
+  invalid.txs.push({...invalid.txs[0],id:'new-unknown-account'});
+  assert.equal((await store({ledger:invalid,expected_revision:1,operation_id:crypto.randomUUID()})).error,'ledger_needs_review');
   assert.equal((await readFinancial(db,'get_financial_records',{collection:'memos'})).records[0].text,'虚拟备注');
   const op={operation_id:crypto.randomUUID(),expected_revision:1,kind:'transfer',amount_fen:125,account_id:'a',to_account_id:'b',local_date:'2026-11-26'};
+  assert.equal((await addLedgerPosting(db,{...op,account_id:'former'})).error,'invalid_account_or_balance');
   const receipt=await addLedgerPosting(db,op);
   assert.equal(receipt.revision,2);
   await sync(store);
@@ -45,7 +58,8 @@ test('original Wallet edits and MCP transactions share a revision, keep earlier 
   assert.equal(book.revision,4);assert.equal((await store(oldFlight)).receipt_revision,1);
   const financial=await readFinancial(db,'get_financial_overview',{month:'2026-11'});
   assert.equal(financial.assets_fen,5800);assert.equal(financial.refund_fen,25);
-  const txs=await readFinancial(db,'get_financial_records',{collection:'txs'});assert.equal(txs.records.length,2);
+  const txs=await readFinancial(db,'get_financial_records',{collection:'txs'});assert.equal(txs.records.length,3);
+  assert.equal(txs.records.find(t=>t.id==='historical').accountId,'former');
   assert.deepEqual((await addLedgerPosting(db,op)).account_changes,receipt.account_changes);
   assert.equal((await readFullState(db)).ledger.accounts[1].balance,9);
 });
