@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { Miniflare } from 'miniflare';
-import { initializeOpeningLedger } from '../opening-ledger.js';
+import { initializeOpeningLedger, prepareOpening } from '../opening-ledger.js';
 import { readFullState,acceptFullState } from '../full-sync.js';
 import { addLedgerPosting } from '../financial-write.js';
 import { readFinancial } from '../financial-read.js';
@@ -16,7 +16,7 @@ test('original Wallet edits and MCP transactions share a revision, keep earlier 
   for(const statement of sql.replace(/^--.*$/gm,'').trim().split(/\n\s*\n/)) await db.prepare(statement).run();
   const opening=fixture();
   opening.txs.push({id:'historical',accountId:'former',type:'income',amount:1,date:'2026-11-20'});
-  await initializeOpeningLedger(db,opening);
+  await initializeOpeningLedger(db,opening,(await prepareOpening(opening)).digest);
   let book=initialFull(fixture);
   const sync=post=>exchangeFull({read:()=>book,persist:x=>book=structuredClone(x),pull:rev=>readFullState(db,rev??-1),post});
   const store=args=>acceptFullState(db,args);

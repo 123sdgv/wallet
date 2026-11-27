@@ -1,5 +1,5 @@
 import { reconcileWallet, WalletDateError } from '../../js/reconcile.mjs';
-import { openingLedger } from '../opening-ledger.js';
+import { prepareOpening } from '../opening-ledger.js';
 
 const input = document.querySelector('input'), output = document.getElementById('result');
 const currency = new Intl.NumberFormat('zh-CN',{style:'currency',currency:'CNY'});
@@ -57,11 +57,14 @@ input.addEventListener('change', async () => {
       add('p','本次只展示预览，正式迁移仍待处理和单独确认。');
       return;
     }
-    const {ledger}=openingLedger(source);
-    if(new TextEncoder().encode(JSON.stringify(ledger)).length>512*1024) return stop('LEDGER-SIZE','账本超过当前迁移容量 512 KiB，请保留完整备份。');
+    const {digest}=await prepareOpening(source);
+    if (version!==selection) return;
     add('h3','本机预览通过');
+    add('p','本次账本版本 '+digest.slice(0,12)+'。正式迁移时会重新核对版本，期间可以照常记账。');
     add('p','拟迁移范围包括账户、金额、流水明细与备注、标签、预算、计划、专项储蓄和资金备忘。正式迁移需由你另行确认。');
   } catch (e) {
+    if (version!==selection) return;
+    if (e.message==='opening_too_large') return stop('LEDGER-SIZE','账本超过当前迁移容量 512 KiB，请保留完整备份。');
     // Only display validator-owned messages. Parser and browser errors may contain input or file names.
     if(e instanceof WalletDateError) return stop(e.code,e.message);
     const reason=Object.hasOwn(diagnostic,e.message) && diagnostic[e.message];

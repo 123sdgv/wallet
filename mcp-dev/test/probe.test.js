@@ -323,7 +323,7 @@ test('phone OAuth grant is isolated from ChatGPT; both clients see the same virt
 });
 
 test('complete ledger reads require a separate scope and return only the requested synthetic data', async () => {
-  const { initializeOpeningLedger } = await import('../opening-ledger.js');
+  const { initializeOpeningLedger, prepareOpening } = await import('../opening-ledger.js');
   await runtime.setOptions({ ...options, d1Databases: ['DB','BUSINESS_DB'] });
   try {
     const db = await runtime.getD1Database('BUSINESS_DB');
@@ -332,7 +332,7 @@ test('complete ledger reads require a separate scope and return only the request
     const source = {settings:{safe:10},safeAlloc:{cash:10},accounts:[{id:'cash',name:'虚拟',balance:100}],
       tags:[{id:'daily',name:'测试'}],goals:[],plans:[],memos:[{id:'m',text:'fixture memo'}],budgets:{'2026-11':{total:20,set:true,tagLimits:{daily:20}}},
       txs:[{id:'prior',date:'2026-11-01',type:'expense',accountId:'cash',amount:2,tagId:'daily',note:'fixture note'}]};
-    await initializeOpeningLedger(db,source);
+    await initializeOpeningLedger(db,source,(await prepareOpening(source)).digest);
     const limited = await grant('wallet:read');
     const denied = await call('get_financial_records',{collection:'memos'},limited);
     assert.equal(denied.status,403);

@@ -57,14 +57,22 @@ export function openingLedger(source) {
   return { ledger, report };
 }
 
-// Called by migration tests with fictitious data. There is deliberately no HTTP upload route.
-export async function initializeOpeningLedger(db, source) {
+export async function prepareOpening(source) {
   const { ledger, report } = openingLedger(source);
   const json = JSON.stringify(ledger);
   const bytes = new TextEncoder().encode(json);
   if (bytes.length > 512 * 1024) throw Error('opening_too_large');
   const fingerprint = await crypto.subtle.digest('SHA-256', bytes);
   const digest = Array.from(new Uint8Array(fingerprint), n => n.toString(16).padStart(2, '0')).join('');
+  return {json, digest, report};
+}
+
+// Opening a ledger requires the exact snapshot that was separately confirmed.
+// The development Worker does not expose an HTTP import route.
+export async function initializeOpeningLedger(db, source, confirmedDigest) {
+  if (typeof confirmedDigest !== 'string' || !/^[a-f0-9]{64}$/.test(confirmedDigest)) return {error:'opening_confirmation_required'};
+  const {json, digest, report} = await prepareOpening(source);
+  if (confirmedDigest !== digest) return {error:'opening_changed_since_preview'};
   const session = db.withSession('first-primary');
   const [created, , stored] = await session.batch([
     session.prepare(`INSERT INTO wallet_opening (singleton, digest, ledger_json)
