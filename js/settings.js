@@ -4,6 +4,7 @@
 // ============================================================
 
 const PANELS = ['tags', 'summary', 'data', 'memo'];
+PANELS.push('sync');
 
 function viewSettings() {
   if (S.ui.setPanel && !PANELS.includes(S.ui.setPanel)) S.ui.setPanel = null;
@@ -27,11 +28,14 @@ function viewSettings() {
     ${row('summary', '消费总结')}
     ${row('tags', '消费标签')}
     ${row('data', '备份与清理')}
+    ${globalThis.walletSandbox ? row('sync', '虚拟账本同步') : globalThis.walletPages ? row('sync','账本同步') : ''}
   </div>`;
 }
 
 function viewSetPanel(panel) {
   const back = `<button class="ib" type="button" id="setBack" aria-label="返回">${svgBack()}</button>`;
+  if (panel === 'sync' && globalThis.walletSandbox) return walletSandbox.panel(back);
+  if (panel === 'sync' && globalThis.walletPages) return walletPages.panel(back);
   if (panel === 'summary') return viewSummary(back);
   if (panel === 'memo') return viewMemo(back);
   if (panel === 'tags') return viewTags(back);
@@ -49,6 +53,8 @@ function bindSettings() {
   if (back) back.onclick = () => { S.ui.setPanel = null; save(); render(); };
 
   const p = S.ui.setPanel;
+  if (p === 'sync' && globalThis.walletSandbox) walletSandbox.bind();
+  if (p === 'sync' && globalThis.walletPages) walletPages.bind();
   if (p === 'tags') bindTagPanel();
   if (p === 'summary') bindSummary();
   if (p === 'data') bindDataPanel();
@@ -191,13 +197,14 @@ function viewData(back) {
   return `<div class="section-title"><h2>备份与清理</h2>${back}</div>
   <div class="card list-card">
     ${row('exportJson', '导出完整备份')}
+    ${row('checkLedger', '本机核对账本')}
     ${row('exportCsv', '导出流水表格')}
-    ${row('importJsonBtn', '从备份恢复')}
+    ${globalThis.walletSandbox ? '' : row('importJsonBtn', '从备份恢复')}
   </div>
   <input type="file" id="importJson" accept="application/json,.json" class="hidden">
   <div class="card list-card">
-    ${row('clearTxOnly', '清空流水', true)}
-    ${row('resetAll', '恢复初始', true)}
+    ${globalThis.walletSandbox && !walletSandbox.allowLocalClear ? '' : row('clearTxOnly', '清空流水', true)}
+    ${globalThis.walletSandbox && !walletSandbox.allowLocalClear ? '' : row('resetAll', '恢复初始', true)}
   </div>`;
 }
 
@@ -225,7 +232,32 @@ function txTypeName(t) {
   return isRefund(t) ? '退款' : '支出';
 }
 
+async function showReconciliation() {
+  try {
+    const { reconcileWallet } = await import('./reconcile.mjs');
+    const report = reconcileWallet(S);
+    const line = (title, value) => '<p>' + esc(title) + '　' + esc(value) + '</p>';
+    const amount = n => money(n / 100);
+    const months = report.months.map(m => line(m.month, '预算 ' + (m.budget_fen === null ? '未设置' : amount(m.budget_fen)) +
+      '，预算内净支出 ' + amount(m.in_budget_fen) + '，预算外 ' + amount(m.off_budget_fen) + '，退款 ' + amount(m.refund_fen))).join('');
+    openModal('<h2>本机账本核对</h2><p>核对结果只在本机显示。</p>' +
+      line('记录数量', report.counts.accounts + ' 个账户，' + report.counts.txs + ' 笔流水，' + report.counts.goals + ' 个专项') +
+      line('其他记录', report.counts.tags + ' 个标签，' + report.counts.budgets + ' 条预算周期记录，' + report.counts.plans + ' 个计划，' + report.counts.memos + ' 条备忘') +
+      line('总资产', amount(report.assets_fen)) + line('安全余额', amount(report.safe_fen)) +
+      line('专项储蓄', amount(report.savings_fen)) + line('可安排资金', amount(report.free_fen)) +
+      line('累计退款', amount(report.refund_fen)) +
+      '<details><summary>迁移预览与数据范围</summary><p>拟迁移账户、流水及备注、标签、预算、计划、储蓄和资金备忘。本次仅在本机核对。正式迁移需要另行确认。</p></details>' +
+      '<details><summary>各账户余额</summary>' + report.accounts.map(a => line(a.name, amount(a.balance_fen))).join('') + '</details>' +
+      '<details><summary>逐月核对</summary>' + months + '</details>' +
+      (report.halfMonths.length ? '<details><summary>旧版半月预算</summary>'+report.halfMonths.map(h=>line(h.month+(h.half==='A'?' 上半月':' 下半月'),h.budget_fen===null?'未设置':amount(h.budget_fen))).join('')+'</details>' : '')+
+      (report.retiredHistory.transactions ? line('已移除账户的历史流水', report.retiredHistory.transactions+' 笔，保留原账户编号') : '')+
+      report.budgetDifferences.map(b => line(b.month+' 预算', '原总额 '+amount(b.stored_fen)+'，分类额度合计 '+amount(b.category_fen)+'，两项均保留')).join('')+
+      report.issues.map(text => line('需核对', text)).join(''));
+  } catch (error) { toast(error.message || '暂时无法核对此账本。'); }
+}
+
 function bindDataPanel() {
+  $('checkLedger').onclick = showReconciliation;
   $('exportJson').onclick = async () => {
     const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
     if (await saveFile('清醒消费备份-' + today() + '.json', blob)) toast('已导出');
@@ -248,8 +280,9 @@ function bindDataPanel() {
     if (await saveFile('流水导出-' + today() + '.csv', new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }))) toast('已导出');
   };
 
-  $('importJsonBtn').onclick = () => $('importJson').click();
-  $('importJson').onchange = async e => {
+  if (globalThis.walletSandbox && !walletSandbox.allowLocalClear) return;
+  if ($('importJsonBtn')) $('importJsonBtn').onclick = () => $('importJson').click();
+  if (!globalThis.walletSandbox) $('importJson').onchange = async e => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
@@ -260,6 +293,7 @@ function bindDataPanel() {
         e.target.value = '';
         return;
       }
+      globalThis.walletPages?.beforeLocalClear();
       S = normalize(data);
       S.ui.setPanel = null;
       save();
@@ -275,6 +309,8 @@ function bindDataPanel() {
 
   $('clearTxOnly').onclick = () => {
     if (!confirm('确定清空所有流水吗？这不会自动恢复账户余额，建议先导出备份。')) return;
+    globalThis.walletPages?.beforeLocalClear();
+    globalThis.walletSandbox?.beforeLocalClear();
     S.txs = [];
     save();
     toast('流水已清空');
@@ -283,6 +319,8 @@ function bindDataPanel() {
 
   $('resetAll').onclick = () => {
     if (!confirm('确定恢复初始吗？当前全部数据会被覆盖，建议先导出备份。')) return;
+    globalThis.walletPages?.beforeLocalClear();
+    globalThis.walletSandbox?.beforeLocalClear();
     S = DEFAULT();
     save();
     page = 'home';
