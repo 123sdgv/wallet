@@ -1,0 +1,4 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Wallet 设备授权</title><p id="status">正在完成 Wallet 设备授权…</p><a href="./">返回 Wallet</a><script type="module">
+import {finishDevice} from './js/device-auth.mjs';
+try {await finishDevice();location.replace('./');} catch(e){document.getElementById('status').textContent=e.message;}
+</script></html>

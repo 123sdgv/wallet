@@ -1,8 +1,9 @@
 import { OAuthResourceServer, AuthorizationError } from '@cloudflare/workers-oauth-provider';
 import { deadline, deviceSession, manageDevices } from './device.js';
 import { readFullState, acceptFullState } from './full-sync.js';
+import { initializeOpeningLedger } from './opening-ledger.js';
 import { FULL_READ } from './financial-read.js';
-import { DEVICE_SYNC, consent, fingerprint, makeAuthorizationServer, phoneOrigin, OWNER } from './auth.js';
+import { DEVICE_SYNC, consent, fingerprint, makeAuthorizationServer, phoneOrigin, productionIssuer, OWNER } from './auth.js';
 import { READ, WRITE, validExpense, serveMcp } from './mcp.js';
 import { addExpense, readChanges } from './ledger.js';
 import { ownerSetup } from './owner-setup.js';
@@ -28,7 +29,8 @@ async function bounded(request, limit) {
 }
 
 async function route(request, env, ctx) {
-  if (!devIssuer.test(env.ISSUER) || !env.DB || !env.OAUTH_KV || !env.LIMITER) return new Response(null, { status: 503 });
+  const formal = env.ISSUER === productionIssuer;
+  if ((!formal && !devIssuer.test(env.ISSUER)) || !env.DB || !env.OAUTH_KV || !env.LIMITER) return new Response(null, { status: 503 });
   const url = new URL(request.url);
   if (url.origin !== env.ISSUER) return new Response(null, { status: 404 });
   const origin = request.headers.get('Origin');
@@ -37,27 +39,28 @@ async function route(request, env, ctx) {
   const limit = await env.LIMITER.limit({ key: 'wallet-mcp-dev:' + (request.headers.get('CF-Connecting-IP') || 'local') });
   if (!limit.success) return new Response(null, { status: 429, headers: { 'Retry-After': '60' } });
   if (phoneRequest && request.method === 'OPTIONS') return new Response(null, { status: 204 });
-  request = await bounded(request, env.BUSINESS_DB && url.pathname === '/mcp/phone/ledger' ? 540 * 1024 : MAX_BYTES);
+  request = await bounded(request, env.BUSINESS_DB && ['/mcp/phone/ledger','/mcp/phone/opening'].includes(url.pathname) ? 540 * 1024 : MAX_BYTES);
   if (!request) return new Response(null, { status: 413 });
 
   const issuer = env.ISSUER;
-  if (url.pathname === '/setup-key' && request.method === 'GET') return ownerSetup();
+  if (url.pathname === '/setup-key' && request.method === 'GET') return ownerSetup(formal);
   const resourceMetadata = '/.well-known/oauth-protected-resource';
   const publicMetadata = [resourceMetadata, resourceMetadata + '/mcp', '/.well-known/oauth-authorization-server'].includes(url.pathname)
     && ['GET', 'HEAD', 'OPTIONS'].includes(request.method);
   const needsChallenge = url.pathname === '/mcp' && !request.headers.has('Authorization');
   const ready = typeof env.OWNER_KEY === 'string' && /^[a-f0-9]{64}$/.test(env.OWNER_KEY);
   if (!ready && !publicMetadata && !needsChallenge && url.pathname !== '/oauth/register') {
-    return new Response('Wallet 测试服务待配置：请将 OWNER_KEY 设为 64 位小写十六进制随机密钥。', {
+    return new Response('Wallet 服务待配置：请将 OWNER_KEY 设为 64 位小写十六进制随机密钥。', {
       status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     });
   }
   const authorization = makeAuthorizationServer(issuer, Boolean(env.BUSINESS_DB));
   if (url.pathname === '/devices') return manageDevices(request, env);
+  if (formal && devicePath(url.pathname)) return new Response(null,{status:404});
   if (devicePath(url.pathname)) {
     return deviceSession(request, env, ctx, authorization, phoneOrigin(issuer), fingerprint);
   }
-  if (url.pathname === '/mcp/phone' || url.pathname === '/mcp/phone/ledger') {
+  if (url.pathname.startsWith('/mcp/phone')) {
     if (!phoneRequest) return new Response(null, { status: 403 });
     const match = /^Bearer (\S+)$/.exec(request.headers.get('Authorization') || '');
     const auth = match && await authorization.validateToken(issuer + '/mcp', match[1], env);
@@ -65,6 +68,19 @@ async function route(request, env, ctx) {
         || auth.props.generation !== await fingerprint(env.OWNER_KEY)) return new Response(null, { status: 401 });
     if (auth.props.device && !await deadline(env, auth.props.device)) return new Response(null, {status:401});
     if (!auth.scope.includes(READ)) return new Response(null, { status: 403 });
+    if (formal && ['/mcp/phone/revoke','/mcp/phone/opening'].includes(url.pathname)) {
+      if (!auth.props.full || !auth.scope.includes(DEVICE_SYNC) || request.method!=='POST') return new Response(null,{status:403});
+      if (url.pathname.endsWith('/revoke')) {
+        if (auth.props.device) await env.DB.prepare('DELETE FROM wallet_devices WHERE id=?').bind(auth.props.device).run();
+        return Response.json({revoked:true});
+      }
+      if (!auth.props.device || request.headers.get('Content-Type')?.split(';')[0]!=='application/json') return new Response(null,{status:403});
+      const args=await request.json();
+      if (args?.confirmation !== 'import-reviewed-ledger') return new Response(null,{status:400});
+      const {error,digest,replayed}=await initializeOpeningLedger(env.BUSINESS_DB,args.ledger,args.digest);
+      return Response.json({error,digest,replayed});
+    }
+    if (formal && url.pathname!=='/mcp/phone/ledger') return new Response(null,{status:404});
     if (url.pathname === '/mcp/phone/ledger') {
       if (!env.BUSINESS_DB || !auth.props.full || !auth.scope.includes(FULL_READ)) return new Response(null,{status:403});
       if (request.method === 'GET') {
@@ -99,9 +115,10 @@ async function route(request, env, ctx) {
       validateToken: () => async (audience, token) => {
         const verified = await authorization.validateToken(audience, token, env);
         if (verified?.userId !== OWNER || verified.props?.clientSurface === 'phone' || verified.props?.generation !== await fingerprint(env.OWNER_KEY)) return null;
+        if (verified.props.device && !await deadline(env,verified.props.device)) return null;
         return verified;
       },
-      handler: { fetch: (req, bindings, context) => serveMcp(req, bindings.DB, context.auth, bindings.BUSINESS_DB) },
+      handler: { fetch: (req, bindings, context) => serveMcp(req, bindings.DB, context.auth, bindings.BUSINESS_DB, formal) },
     });
     // Some clients try the origin-level discovery URL before the path-specific URL.
     if (url.pathname === resourceMetadata && publicMetadata) {
@@ -113,7 +130,7 @@ async function route(request, env, ctx) {
   const response = await authorization.fetch(request, env, ctx);
   if (env.BUSINESS_DB && request.method === 'GET' && url.pathname === '/.well-known/oauth-authorization-server' && response.ok) {
     const metadata=await response.json();
-    metadata.scopes_supported=metadata.scopes_supported.filter(scope=>scope!==DEVICE_SYNC);
+    metadata.scopes_supported=metadata.scopes_supported.filter(scope=>scope!==DEVICE_SYNC && (!formal || scope!==WRITE));
     return Response.json(metadata);
   }
   return response;
@@ -122,7 +139,7 @@ async function route(request, env, ctx) {
 function devicePath(path) { return /^\/device\/(full\/)?(connect|resume|revoke)$/.test(path); }
 
 function phonePath(path) {
-  return ['/oauth/register', '/oauth/token', '/oauth/revoke', '/mcp/phone', '/mcp/phone/ledger'].includes(path);
+  return ['/oauth/register', '/oauth/token', '/oauth/revoke', '/mcp/phone', '/mcp/phone/ledger', '/mcp/phone/opening', '/mcp/phone/revoke'].includes(path);
 }
 
 export default {

@@ -48,7 +48,7 @@ function result(data) {
   return { content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data, isError: Boolean(data.error) };
 }
 
-export async function serveMcp(request, db, auth, businessDb) {
+export async function serveMcp(request, db, auth, businessDb, formal = false) {
   if (!auth.scope.includes(READ)) return insufficientScope(auth, [READ]);
   if (request.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } });
   if (request.headers.get('Content-Type')?.split(';')[0].trim() !== 'application/json') return new Response(null, { status: 415 });
@@ -66,12 +66,12 @@ export async function serveMcp(request, db, auth, businessDb) {
       && (!auth.scope.includes(FULL_WRITE) || !auth.scope.includes(FULL_READ))) {
     return insufficientScope(auth, [READ, FULL_READ, FULL_WRITE]);
   }
-  const server = new Server({ name: 'wallet-mcp-dev', version: '0.1.0' }, { capabilities: { tools: {} } });
-  server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: businessDb ? [readTool, writeTool, ...extra, postingTool] : [readTool, writeTool] }));
+  const server = new Server({ name: formal ? 'wallet-mcp' : 'wallet-mcp-dev', version: '0.1.0' }, { capabilities: { tools: {} } });
+  server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: formal ? [...extra, postingTool] : businessDb ? [readTool, writeTool, ...extra, postingTool] : [readTool, writeTool] }));
   server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
     const args = params.arguments ?? {};
     try {
-      if (params.name === readTool.name) {
+      if (!formal && params.name === readTool.name) {
         if (Object.keys(args).length) invalid();
         return result(await readBalance(db));
       }
@@ -81,7 +81,7 @@ export async function serveMcp(request, db, auth, businessDb) {
         if (response.error === 'invalid_arguments') invalid();
         return result(response);
       }
-      if (params.name !== writeTool.name) throw new McpError(ErrorCode.MethodNotFound, 'Unknown test tool.');
+      if (formal || params.name !== writeTool.name) throw new McpError(ErrorCode.MethodNotFound, 'Unknown test tool.');
       if (!validExpense(args)) invalid();
       return result(await addExpense(db, args));
     } catch (error) {

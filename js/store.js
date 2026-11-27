@@ -160,7 +160,9 @@ function load() {
 
 function save() {
   if (globalThis.walletSandbox) return walletSandbox.save(S);
+  globalThis.walletPages?.beforeSave();
   localStorage.setItem(KEY, JSON.stringify(S));
+  globalThis.walletPages?.saved();
 }
 
 // 全局数据，所有页面都读写它

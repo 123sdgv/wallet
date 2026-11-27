@@ -7,12 +7,12 @@ document.querySelector('#generate').onclick = () => {
   output.select();
 };`;
 
-export async function ownerSetup() {
+export async function ownerSetup(formal = false) {
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(keyScript)));
   const hash = btoa(String.fromCharCode(...digest));
   return new Response(`<!doctype html><html lang="zh-CN"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Wallet 测试密钥</title><main><h1>生成测试账本密钥</h1>
+<title>Wallet 所有者密钥</title><main><h1>生成${formal?"正式":"测试"}账本密钥</h1>
 <p>密钥仅在本机生成。将它保存在密码管理器中，再把同一个值填入 Cloudflare 的 OWNER_KEY 和 Wallet 授权页。</p>
 <button id="generate">生成并选中密钥</button>
 <p><label>长按复制 <input id="key" readonly autocomplete="off" spellcheck="false"></label></p>

@@ -4,7 +4,7 @@
 // ============================================================
 
 const PANELS = ['tags', 'summary', 'data', 'memo'];
-if (globalThis.walletSandbox) PANELS.push('sync');
+PANELS.push('sync');
 
 function viewSettings() {
   if (S.ui.setPanel && !PANELS.includes(S.ui.setPanel)) S.ui.setPanel = null;
@@ -28,13 +28,14 @@ function viewSettings() {
     ${row('summary', '消费总结')}
     ${row('tags', '消费标签')}
     ${row('data', '备份与清理')}
-    ${globalThis.walletSandbox ? row('sync', '虚拟账本同步') : ''}
+    ${globalThis.walletSandbox ? row('sync', '虚拟账本同步') : globalThis.walletPages ? row('sync','账本同步') : ''}
   </div>`;
 }
 
 function viewSetPanel(panel) {
   const back = `<button class="ib" type="button" id="setBack" aria-label="返回">${svgBack()}</button>`;
   if (panel === 'sync' && globalThis.walletSandbox) return walletSandbox.panel(back);
+  if (panel === 'sync' && globalThis.walletPages) return walletPages.panel(back);
   if (panel === 'summary') return viewSummary(back);
   if (panel === 'memo') return viewMemo(back);
   if (panel === 'tags') return viewTags(back);
@@ -53,6 +54,7 @@ function bindSettings() {
 
   const p = S.ui.setPanel;
   if (p === 'sync' && globalThis.walletSandbox) walletSandbox.bind();
+  if (p === 'sync' && globalThis.walletPages) walletPages.bind();
   if (p === 'tags') bindTagPanel();
   if (p === 'summary') bindSummary();
   if (p === 'data') bindDataPanel();
@@ -291,6 +293,7 @@ function bindDataPanel() {
         e.target.value = '';
         return;
       }
+      globalThis.walletPages?.beforeLocalClear();
       S = normalize(data);
       S.ui.setPanel = null;
       save();
@@ -306,6 +309,7 @@ function bindDataPanel() {
 
   $('clearTxOnly').onclick = () => {
     if (!confirm('确定清空所有流水吗？这不会自动恢复账户余额，建议先导出备份。')) return;
+    globalThis.walletPages?.beforeLocalClear();
     globalThis.walletSandbox?.beforeLocalClear();
     S.txs = [];
     save();
@@ -315,6 +319,7 @@ function bindDataPanel() {
 
   $('resetAll').onclick = () => {
     if (!confirm('确定恢复初始吗？当前全部数据会被覆盖，建议先导出备份。')) return;
+    globalThis.walletPages?.beforeLocalClear();
     globalThis.walletSandbox?.beforeLocalClear();
     S = DEFAULT();
     save();

@@ -22,7 +22,7 @@ export async function deadline(env, id) {
 export async function exchangePolicy({ props, env }, fingerprint) {
   if (!props?.device) return { refreshTokenTTL: 0 };
   const remaining = await deadline(env, props.device) - now();
-  if (props.clientSurface !== 'phone' || props.generation !== await fingerprint(env.OWNER_KEY) || remaining < 60) {
+  if (!['phone','chatgpt'].includes(props.clientSurface) || props.generation !== await fingerprint(env.OWNER_KEY) || remaining < 60) {
     throw new OAuthError('invalid_grant', { description: 'Device authorization ended.' });
   }
   return { accessTokenTTL: Math.min(900, remaining), refreshTokenTTL: remaining };
@@ -86,10 +86,10 @@ export async function deviceSession(request, env, ctx, server, phoneOrigin, fing
 export async function manageDevices(request, env) {
   const headers = {'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"};
   const page = text => new Response('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Wallet 设备授权</title><h1>Wallet 设备授权</h1>'+text+'</html>',{headers});
-  if (request.method === 'GET') return page('<form method="post"><label>测试账本所有者密钥 <input name="owner_key" type="password" required maxlength="64"></label><p>撤销后，所有已记住的测试设备都需要重新授权。本机账目会保留。</p><button name="action" value="revoke">撤销所有测试设备授权</button></form>');
+  if (request.method === 'GET') return page('<form method="post"><label>账本所有者密钥 <input name="owner_key" type="password" required maxlength="64"></label><p>撤销后，所有已记住的设备都需要重新授权。本机账目会保留。</p><button name="action" value="revoke">撤销所有测试设备授权</button></form>');
   if (request.method !== 'POST' || request.headers.get('Origin') !== env.ISSUER || request.headers.get('Content-Type')?.split(';')[0] !== 'application/x-www-form-urlencoded') return new Response(null,{status:403});
   const form = await request.formData();
   if (form.get('action') !== 'revoke' || !ownerMatches(form.get('owner_key'),env.OWNER_KEY)) return new Response(null,{status:403});
   await primary(env).prepare('DELETE FROM wallet_devices').run();
-  return page('<p>所有已记住的测试设备授权均已撤销。</p>');
+  return page('<p>所有已记住的设备授权均已撤销。</p>');
 }
