@@ -2,6 +2,7 @@ import { OAuthResourceServer, AuthorizationError } from '@cloudflare/workers-oau
 import { deadline, deviceSession, manageDevices } from './device.js';
 import { readFullState, acceptFullState } from './full-sync.js';
 import { initializeOpeningLedger } from './opening-ledger.js';
+import { FULL_WRITE } from './financial-write.js';
 import { FULL_READ } from './financial-read.js';
 import { DEVICE_SYNC, consent, fingerprint, makeAuthorizationServer, phoneOrigin, productionIssuer, OWNER } from './auth.js';
 import { READ, WRITE, validExpense, serveMcp } from './mcp.js';
@@ -121,9 +122,14 @@ async function route(request, env, ctx) {
       handler: { fetch: (req, bindings, context) => serveMcp(req, bindings.DB, context.auth, bindings.BUSINESS_DB, formal) },
     });
     // Some clients try the origin-level discovery URL before the path-specific URL.
-    if (url.pathname === resourceMetadata && publicMetadata) {
+    if (publicMetadata) {
       const canonical = new URL(resourceMetadata + '/mcp', issuer);
-      return resource.fetch(new Request(canonical, { method: request.method, headers: request.headers }), env, ctx);
+      const metadata = await resource.fetch(new Request(canonical, { method: request.method, headers: request.headers }), env, ctx);
+      if (formal && request.method === 'GET' && metadata.ok) {
+        // Discovery lists available permissions. Each tool still enforces its own scopes.
+        return Response.json({ ...await metadata.json(), scopes_supported:[READ,FULL_READ,FULL_WRITE] }, {headers:metadata.headers});
+      }
+      return metadata;
     }
     return resource.fetch(request, env, ctx);
   }

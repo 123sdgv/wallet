@@ -81,11 +81,11 @@ function install() {
     },
     saved(){lastRaw=localStorage.getItem(KEY);if(meta()&&!running)schedule();else if(running)queued=true;},
     panel(back){
-      const m=meta(),until=Number(localStorage.getItem('wallet.pages.until')),pending=!!localStorage.getItem(revokeKey);
+      const m=meta(),authorization=localStorage.getItem('wallet.pages.until'),until=authorization==='long'?Infinity:Number(authorization),pending=!!localStorage.getItem(revokeKey);
       const button=(id,label)=>'<button type="button" class="list-btn" id="'+id+'">'+label+'</button>';
       return '<section id="sync-panel"><div class="section-title"><h2>账本同步</h2>'+back+'</div><div class="card"><p>'+esc(message||(pending?'已暂停，待联网撤销':until<=Date.now()?'尚未授权或授权已到期':!m?'设备已授权，等待核对账本':m.bulkReview?'本机恢复或清理等待确认':m.conflict?'本机与云端均有修改':m.opening?'等待确认写入结果':read().dirty?'本机修改待同步':'已连接 · 版本 '+m.revision))+'</p>'+
-        (until>Date.now()?'<p>授权到期 '+esc(new Date(until).toLocaleDateString())+'</p>':'')+
-        button('pair',until?'重新授权':'授权本机 30 天')+(until?button('off','撤销本机授权'):'')+
+        (until===Infinity?'<p>本机已长期授权，可随时撤销</p>':until>Date.now()?'<p>授权到期 '+esc(new Date(until).toLocaleDateString())+'</p>':'')+
+        button('pair',until?'重新授权':'长期授权本机')+(until?button('off','撤销本机授权'):'')+
         (until&&!pending&&!m?button('import-ledger','核对并连接正式账本'):'')+(m&&until?button('resync','立即同步'):'')+
         (m?.bulkReview?button('allow-bulk','确认同步本机恢复或清理结果'):'')+
         (m?.conflict?button('use-local','保留本机版本')+button('use-cloud','采用云端版本'):'')+

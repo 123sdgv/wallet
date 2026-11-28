@@ -36,10 +36,10 @@ async function exchange(fields) {
   const r=await api('/oauth/token',{method:'POST',body:new URLSearchParams({...fields,resource:issuer+'/mcp'})});
   const data=await r.json();
   if(!r.ok) {
-    if(data.error==='invalid_grant') throw Error('设备授权已失效，请重新授权');
+    if(['invalid_client','invalid_grant'].includes(data.error)) throw Error('设备授权已失效，请重新授权');
     throw Error('授权服务暂时不可用');
   }
-  if(!data.access_token||!data.refresh_token)throw Error('请重新授权并勾选记住设备 30 天');
+  if(!data.access_token||!data.refresh_token)throw Error('未取得续期凭据，请重新授权');
   return {access:data.access_token,refresh:data.refresh_token,until:Date.now()+1000*data.expires_in};
 }
 export async function finishDevice() {
@@ -49,13 +49,13 @@ export async function finishDevice() {
   sessionStorage.removeItem(flowKey);
   if(!flow||Date.now()-flow.at>600000||params.get('state')!==flow.state||params.get('iss')!==issuer||!params.get('code'))throw Error('授权已取消或过期，请返回 Wallet 重新授权');
   const grant=await exchange({client_id:flow.client_id,grant_type:'authorization_code',redirect_uri:callback,code_verifier:flow.verifier,code:params.get('code')});
-  await session('put',{...grant,client:flow.client_id,deadline:Date.now()+30*86400000});
-  localStorage.setItem('wallet.pages.until',String(Date.now()+30*86400000));
+  await session('put',{...grant,client:flow.client_id,deadline:null});
+  localStorage.setItem('wallet.pages.until','long');
 }
 async function access() {
   return navigator.locks.request('wallet.pages.token',async()=>{
     const saved=await session('get');
-    if(!saved||saved.deadline<=Date.now())throw Error('请重新授权设备');
+    if(!saved||(saved.deadline!=null && saved.deadline<=Date.now()))throw Error('请重新授权设备');
     if(saved.until>Date.now()+30000)return saved.access;
     const grant=await exchange({client_id:saved.client,grant_type:'refresh_token',refresh_token:saved.refresh});
     await session('put',{...saved,...grant});

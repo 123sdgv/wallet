@@ -1,6 +1,7 @@
 import { OAuthError } from '@cloudflare/workers-oauth-provider';
 
 export const DEVICE_SECONDS = 30 * 24 * 3600;
+const UNTIL_REVOKED = -1;
 const cookieName = full => full ? '__Host-wallet-full-device' : '__Host-wallet-device';
 const now = () => Math.floor(Date.now() / 1000);
 const primary = env => env.DB.withSession('first-primary');
@@ -9,23 +10,24 @@ export function ownerMatches(value, secret) {
   return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value) && typeof secret === 'string' && secret.length === 64
     && crypto.subtle.timingSafeEqual(new TextEncoder().encode(value), new TextEncoder().encode(secret));
 }
-export async function enroll(env) {
-  const device = crypto.randomUUID(), until = now() + DEVICE_SECONDS;
+export async function enroll(env, untilRevoked = false) {
+  const device = crypto.randomUUID(), until = untilRevoked ? UNTIL_REVOKED : now() + DEVICE_SECONDS;
   const db = primary(env);
-  await db.batch([db.prepare('DELETE FROM wallet_devices WHERE expires_at <= ?').bind(now()),
+  await db.batch([db.prepare('DELETE FROM wallet_devices WHERE expires_at != ? AND expires_at <= ?').bind(UNTIL_REVOKED, now()),
     db.prepare('INSERT INTO wallet_devices (id,expires_at) VALUES (?,?)').bind(device, until)]);
   return device;
 }
 export async function deadline(env, id) {
-  return (await primary(env).prepare('SELECT expires_at FROM wallet_devices WHERE id=? AND expires_at>?').bind(id, now()).first())?.expires_at || 0;
+  return (await primary(env).prepare('SELECT expires_at FROM wallet_devices WHERE id=? AND (expires_at=? OR expires_at>?)').bind(id, UNTIL_REVOKED, now()).first())?.expires_at || 0;
 }
 export async function exchangePolicy({ props, env }, fingerprint) {
   if (!props?.device) return { refreshTokenTTL: 0 };
-  const remaining = await deadline(env, props.device) - now();
+  const ends = await deadline(env, props.device);
+  const remaining = ends === UNTIL_REVOKED ? Infinity : ends - now();
   if (!['phone','chatgpt'].includes(props.clientSurface) || props.generation !== await fingerprint(env.OWNER_KEY) || remaining < 60) {
     throw new OAuthError('invalid_grant', { description: 'Device authorization ended.' });
   }
-  return { accessTokenTTL: Math.min(900, remaining), refreshTokenTTL: remaining };
+  return { accessTokenTTL: Math.min(900, remaining), ...(Number.isFinite(remaining) && { refreshTokenTTL: remaining }) };
 }
 function response(data, status, cookie, full) {
   const headers = { 'Cache-Control':'private, no-store' };
@@ -86,7 +88,7 @@ export async function deviceSession(request, env, ctx, server, phoneOrigin, fing
 export async function manageDevices(request, env) {
   const headers = {'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"};
   const page = text => new Response('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Wallet 设备授权</title><h1>Wallet 设备授权</h1>'+text+'</html>',{headers});
-  if (request.method === 'GET') return page('<form method="post"><label>账本所有者密钥 <input name="owner_key" type="password" required maxlength="64"></label><p>撤销后，所有已记住的设备都需要重新授权。本机账目会保留。</p><button name="action" value="revoke">撤销所有测试设备授权</button></form>');
+  if (request.method === 'GET') return page('<form method="post"><label>账本所有者密钥 <input name="owner_key" type="password" required maxlength="64"></label><p>撤销后，所有已记住的设备都需要重新授权。本机账目会保留。</p><button name="action" value="revoke">撤销所有设备和 ChatGPT 授权</button></form>');
   if (request.method !== 'POST' || request.headers.get('Origin') !== env.ISSUER || request.headers.get('Content-Type')?.split(';')[0] !== 'application/x-www-form-urlencoded') return new Response(null,{status:403});
   const form = await request.formData();
   if (form.get('action') !== 'revoke' || !ownerMatches(form.get('owner_key'),env.OWNER_KEY)) return new Response(null,{status:403});

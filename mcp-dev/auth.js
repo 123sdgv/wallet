@@ -12,14 +12,15 @@ export const fullCallback = issuer => issuer === productionIssuer ? pagesOrigin+
 export const phoneOrigin = issuer => issuer === productionIssuer ? pagesOrigin : issuer.replace('https://wallet-mcp-dev.', 'https://wallet-sync-dev.');
 const phoneRedirect = issuer => phoneOrigin(issuer) + '/connect.html';
 export const DEVICE_SYNC = 'wallet:device:sync';
+const OFFLINE = 'offline_access';
 const scopes = [READ, WRITE];
-const labels = { [DEVICE_SYNC]: '双向同步完整虚拟账本（含流水备注、账户、预算、计划、储蓄与备忘）', [FULL_WRITE]: '新增完整账本流水（支出、收入、退款、转账记录）', [FULL_READ]: '查询完整账本、流水、备注与资金备忘', [READ]: '查询虚拟余额', [WRITE]: '新增虚拟支出' };
+const labels = { [OFFLINE]: '自动续期', [DEVICE_SYNC]: '双向同步完整虚拟账本（含流水备注、账户、预算、计划、储蓄与备忘）', [FULL_WRITE]: '新增完整账本流水（支出、收入、退款、转账记录）', [FULL_READ]: '查询完整账本、流水、备注与资金备忘', [READ]: '查询虚拟余额', [WRITE]: '新增虚拟支出' };
 
 export function makeAuthorizationServer(issuer, businessEnabled = false) {
   return new OAuthAuthorizationServer({
-    issuer, resources: [issuer + '/mcp'], scopesSupported: issuer===productionIssuer ? [READ,FULL_READ,FULL_WRITE,DEVICE_SYNC] : businessEnabled ? [...scopes, FULL_READ, FULL_WRITE, DEVICE_SYNC] : scopes,
-    clientRegistrationEndpoint: '/oauth/register', clientRegistrationTTL: DEVICE_SECONDS + 86400,
-    accessTokenTTL: 900, refreshTokenTTL: 0,
+    issuer, resources: [issuer + '/mcp'], scopesSupported: issuer===productionIssuer ? [READ,FULL_READ,FULL_WRITE,DEVICE_SYNC,OFFLINE] : businessEnabled ? [...scopes, FULL_READ, FULL_WRITE, DEVICE_SYNC] : scopes,
+    clientRegistrationEndpoint: '/oauth/register', clientRegistrationTTL: issuer === productionIssuer ? 365 * 86400 : DEVICE_SECONDS + 86400,
+    accessTokenTTL: 900, refreshTokenTTL: issuer === productionIssuer ? undefined : 0,
     tokenExchangeCallback: options => exchangePolicy(options, fingerprint),
     clientRegistrationCallback({ clientMetadata: client }) {
       if (!Array.isArray(client.redirect_uris) || client.redirect_uris.length !== 1
@@ -45,7 +46,7 @@ export async function consent(request, env, oauth) {
     const full = Boolean(env.BUSINESS_DB) && auth.redirectUri === fullCallback(env.ISSUER);
     const phone = full || auth.redirectUri === phoneRedirect(env.ISSUER);
     const formal = env.ISSUER === productionIssuer;
-    const allowedScopes = full ? [READ, FULL_READ, DEVICE_SYNC] : formal ? [READ,FULL_READ,FULL_WRITE] : !phone && env.BUSINESS_DB ? [...scopes, FULL_READ, FULL_WRITE] : scopes;
+    const allowedScopes = full ? [READ, FULL_READ, DEVICE_SYNC] : formal ? [READ,FULL_READ,FULL_WRITE,OFFLINE] : !phone && env.BUSINESS_DB ? [...scopes, FULL_READ, FULL_WRITE] : scopes;
     if ((!phone && auth.redirectUri !== redirectUri) || auth.codeChallengeMethod !== 'S256' || !auth.codeChallenge
         || !auth.scope.includes(READ) || (auth.scope.includes(FULL_WRITE) && !auth.scope.includes(FULL_READ)) || auth.scope.some(s => !allowedScopes.includes(s))) {
       return new Response('授权请求无效。请回到 ChatGPT，从 Wallet 插件重新开始连接。', { status: 400 });
@@ -62,7 +63,7 @@ export async function consent(request, env, oauth) {
 <form method="post" action="/authorize">
 <input type="hidden" name="handle" value="${escapeHtml(handle)}">
 <label>${formal?"正式":"测试"}账本所有者密钥 <input type="password" name="owner_key" autocomplete="off" maxlength="64" required></label>
-${formal && phone ? '<input type="hidden" name="remember" value="30"><p>本机授权有效期 30 天，可在 Wallet 的「我的 → 账本同步」随时撤销。</p>' : phone ? '<p><label><input type="checkbox" name="remember" value="30" checked>记住这台设备 30 天</label>，可在 Wallet 的「我的」里撤销。</p>' : ''}
+${formal ? '<input type="hidden" name="remember" value="long"><p>此次授权长期有效，访问凭证自动续期。可在 <a href="/devices">设备授权管理</a> 撤销，手机也可在 Wallet 的「我的 → 账本同步」撤销本机授权。</p>' : phone ? '<p><label><input type="checkbox" name="remember" value="30" checked>记住这台设备 30 天</label>，可在 Wallet 的「我的」里撤销。</p>' : ''}
 <p><button name="decision" value="approve">允许本次权限</button> <button name="decision" value="deny" formnovalidate>拒绝</button></p></form></html>`;
     return new Response(page, { headers });
   }
@@ -84,7 +85,8 @@ ${formal && phone ? '<input type="hidden" name="remember" value="30"><p>本机�
   const approved = await oauth.approveConsent(request, handle);
   const full = approved.request.redirectUri === fullCallback(env.ISSUER);
   const phone = full || approved.request.redirectUri === phoneRedirect(env.ISSUER);
-  const device = ((phone && form.get('remember') === '30') || (!phone && env.ISSUER===productionIssuer)) ? await enroll(env) : null;
+  const persistent = env.ISSUER === productionIssuer && form.get('remember') === 'long';
+  const device = (persistent || (phone && form.get('remember') === '30') || (!phone && env.ISSUER===productionIssuer)) ? await enroll(env, persistent) : null;
   const { redirectTo } = await oauth.completeAuthorization({
     request: approved.request, userId: OWNER, scope: approved.request.scope,
     metadata: {}, props: { generation: await fingerprint(env.OWNER_KEY), clientSurface: phone ? 'phone' : 'chatgpt', ...(full && {full:true}), ...(device && {device}) },
